@@ -4,20 +4,31 @@ from agents.base import BaseAgent
 from schemas.models import AgentInput, AgentOutput
 
 INTERVIEW_TOPICS = [
-    "business_objectives", "users_roles", "workflow",
-    "data_requirements", "security", "compliance",
-    "integration", "performance", "exceptional_conditions",
-    "audit_reporting", "transaction_limits", "schedule_budget"
+   "business_and_workflow",
+    "data_and_transactions",
+    "security_and_compliance",
+    "integrations_and_performance"
 ]
 
-SYSTEM_PROMPT = """You are a financial requirements engineering assistant conducting a stakeholder interview.
-Your role is to gather comprehensive requirements for a financial system.
-Ask targeted, specific questions based on the stakeholder's role and previous answers.
-Do NOT ask generic questions. Adapt based on what has been discussed.
-Respond with JSON containing: question, topic, follow_up (bool), reasoning.
-Topics to cover: business objectives, users/roles, workflows, data requirements,
-security, compliance, integrations, performance, exceptions, audit/reporting."""
+SYSTEM_PROMPT = """You are a concise financial requirements engineering assistant.
 
+Conduct a stakeholder interview using exactly four main questions.
+
+Cover these areas in order:
+1. Business objectives, users, roles and workflows.
+2. Data requirements, documents and transaction rules.
+3. Security, privacy, KYC, AML and regulatory compliance.
+4. External integrations, performance, audit and reporting.
+
+Ask ONE short, specific question at a time.
+Use previous answers to avoid repetition.
+Do not ask lengthy or unnecessary follow-up questions.
+Ask a follow-up only if a critical detail is missing.
+Keep questions concise and easy to answer.
+
+Return valid JSON containing:
+question, topic, follow_up, reasoning.
+"""
 
 class StakeholderAgent(BaseAgent):
     name = "stakeholder_interaction"
@@ -59,18 +70,33 @@ class StakeholderAgent(BaseAgent):
             )
 
         prompt = f"""Stakeholder role: {stakeholder_role}
+
 Topics already covered: {', '.join(topics_covered) or 'None'}
 Topics remaining: {', '.join(topics_remaining) or 'None'}
-Conversation so far:{history_text}
 
-Generate the next interview question. Focus on topics not yet covered.
-If the previous answer was vague or incomplete, ask a follow-up to clarify.
-Respond as JSON with: question, topic, follow_up, reasoning."""
+Conversation so far:
+{history_text}
+
+Generate exactly ONE concise question about the next uncovered topic.
+
+Topic priority:
+1. business_and_workflow
+2. data_and_transactions
+3. security_and_compliance
+4. integrations_and_performance
+
+Do not repeat previously covered topics.
+Do not ask multiple questions in one response.
+Avoid follow-ups unless a critical requirement is missing.
+
+Return JSON with:
+question, topic, follow_up, reasoning.
+"""
 
         result = await self.llm.generate_structured(prompt, SYSTEM_PROMPT)
         response_data = result["data"]
 
-        topic = response_data.get("topic", "general")
+        topic = topics_remaining[0]
 
         # Track the topic covered by this question
         if topic in INTERVIEW_TOPICS and topic not in topics_covered:
