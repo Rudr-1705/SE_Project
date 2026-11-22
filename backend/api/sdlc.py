@@ -1,4 +1,4 @@
-"""SDLC analysis, interview, and session API."""
+"""SDLC analysis, interview, and session API with project ownership enforcement."""
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -7,6 +7,7 @@ from models.user import User
 from models.project import Project
 from models.audit import AuditLog
 from security.auth import get_current_user
+from security.project_guard import verify_project_ownership
 from agents.orchestrator import get_orchestrator
 
 router = APIRouter(prefix="/api/projects/{project_id}", tags=["sdlc", "interview"])
@@ -19,11 +20,8 @@ async def start_interview(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Start adaptive stakeholder interview."""
-    res = await db.execute(select(Project).where(Project.id == project_id))
-    project = res.scalar_one_or_none()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    """Start adaptive stakeholder interview with ownership check."""
+    await verify_project_ownership(project_id, user, db)
 
     orchestrator = get_orchestrator()
     return await orchestrator.start_interview(project_id, user.id, stakeholder_role, db=db)
@@ -36,11 +34,8 @@ async def answer_interview(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Submit answer and get next interview question."""
-    res = await db.execute(select(Project).where(Project.id == project_id))
-    project = res.scalar_one_or_none()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    """Submit answer and get next interview question with ownership check."""
+    await verify_project_ownership(project_id, user, db)
 
     orchestrator = get_orchestrator()
     return await orchestrator.answer_interview(project_id, user.id, answer, db=db)
@@ -52,7 +47,9 @@ async def get_interview_history(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get full conversation history and covered topics for this project."""
+    """Get full conversation history and covered topics with ownership check."""
+    await verify_project_ownership(project_id, user, db)
+
     orchestrator = get_orchestrator()
     await orchestrator.sync_from_db(project_id, db)
     session = orchestrator.get_session_state(project_id)
@@ -71,64 +68,58 @@ async def analyse_sdlc(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Run SDLC selection analysis. Final choice requires human approval."""
-    res = await db.execute(select(Project).where(Project.id == project_id))
-    project = res.scalar_one_or_none()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    """Run SDLC selection analysis with ownership check and prerequisite validation."""
+    project = await verify_project_ownership(project_id, user, db)
 
     orchestrator = get_orchestrator()
-    result = await orchestrator.run_sdlc_analysis(project_id, user.id, factors, db=db)
+    await orchestrator.sync_from_db(project_id, db)
+    session = orchestrator.get_session_state(project_id)
 
-    # Auto-create approval request for SDLC selection
-    await orchestrator.request_approval(
-        project_id=project_id,
-        user_id=user.id,
-        approval_type="sdlc_selection",
-        title=f"SDLC Methodology Approval: {result.get('display_name', 'Hybrid')}",
-        description=f"Recommended: {result.get('display_name')} (Score: {result.get('recommended_score')}). Requires multi-stakeholder approval.",
-        target_id=project_id,
-        target_data=result,
-        db=db,
-    )
+    # Workflow validation: requirements must exist
+    if session.get("requirement_count", 0) == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot run SDLC selection: No requirements found for this project."
+        )
 
-    db.add(AuditLog(
-        event_type="sdlc", action="recommend",
-        user_id=user.id, project_id=project_id,
-        details={"recommended_model": result.get("recommended_model"), "score": result.get("recommended_score")}
-    ))
-    await db.flush()
+    # Include project domain/jurisdiction factors
+    factors = factors or {}
+    factors.setdefault("jurisdiction", project.jurisdiction)
+    factors.setdefault("use_case", project.use_case)
 
-    return result
+    return await orchestrator.run_sdlc_analysis(project_id, user.id, factors, db=db)
 
 
-@router.get("/sdlc/result")
-async def get_sdlc_result(
+@router.get("/sdlc/recommendation")
+async def get_sdlc_recommendation(
     project_id: str,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get stored SDLC analysis result."""
+    """Get current SDLC recommendation with ownership check."""
+    await verify_project_ownership(project_id, user, db)
+
     orchestrator = get_orchestrator()
     await orchestrator.sync_from_db(project_id, db)
-    session = orchestrator._get_session(project_id)
-    results = session.get("analysis_results", {})
-    return results.get("sdlc", {"message": "No SDLC analysis run yet"})
+    session = orchestrator.get_session_state(project_id)
+    sdlc_res = session.get("analysis_results", {}).get("sdlc")
+    if not sdlc_res:
+        raise HTTPException(status_code=404, detail="SDLC analysis not yet run")
+    return sdlc_res
 
 
 @router.post("/artefacts/generate")
-async def generate_artefact_legacy(
+async def generate_artefact(
     project_id: str,
     artefact_type: str = "srs",
     project_name: str = "",
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Generate SRS document (only SRS is supported)."""
-    res = await db.execute(select(Project).where(Project.id == project_id))
-    project = res.scalar_one_or_none()
-    name = project_name or (project.name if project else project_id)
-    desc = project.description if project else ""
+    """Generate SRS document (only SRS is supported) with ownership check."""
+    project = await verify_project_ownership(project_id, user, db)
+    name = project_name or project.name
+    desc = project.description or ""
 
     orchestrator = get_orchestrator()
     return await orchestrator.generate_srs(
@@ -146,11 +137,8 @@ async def get_session_state(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get current orchestrator session state with database hydration."""
-    res = await db.execute(select(Project).where(Project.id == project_id))
-    project = res.scalar_one_or_none()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    """Get current orchestrator session state with ownership check."""
+    await verify_project_ownership(project_id, user, db)
 
     orchestrator = get_orchestrator()
     await orchestrator.sync_from_db(project_id, db)
@@ -163,7 +151,9 @@ async def get_audit_trail(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get the persistent and session audit trail for this project."""
+    """Get persistent and session audit trail with ownership check."""
+    await verify_project_ownership(project_id, user, db)
+
     res = await db.execute(
         select(AuditLog)
         .where(AuditLog.project_id == project_id)

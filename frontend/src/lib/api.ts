@@ -51,7 +51,7 @@ export const projectsAPI = {
   list: (token: string) =>
     apiFetch('/projects', { token }),
 
-  create: (token: string, data: { name: string; description?: string; use_case?: string }) =>
+  create: (token: string, data: { name: string; description?: string; use_case?: string; jurisdiction?: string }) =>
     apiFetch('/projects', { method: 'POST', body: data, token }),
 
   get: (token: string, id: string) =>
@@ -105,11 +105,43 @@ export const srsAPI = {
   preview: (token: string, projectId: string) =>
     apiFetch(`/projects/${projectId}/srs/preview`, { token }),
 
-  getPdfDownloadUrl: (projectId: string) =>
-    `${API_BASE}/projects/${projectId}/srs/download/pdf`,
+  downloadPdf: async (token: string, projectId: string, filename = 'SRS_Document.pdf') => {
+    const res = await fetch(`${API_BASE}/projects/${projectId}/srs/download/pdf`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Failed to download PDF document');
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  },
 
-  getDocxDownloadUrl: (projectId: string) =>
-    `${API_BASE}/projects/${projectId}/srs/download/docx`,
+  downloadDocx: async (token: string, projectId: string, filename = 'SRS_Document.docx') => {
+    const res = await fetch(`${API_BASE}/projects/${projectId}/srs/download/docx`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Failed to download DOCX document');
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  },
+
+  getPdfDownloadUrl: (projectId: string, token = '') =>
+    `${API_BASE}/projects/${projectId}/srs/download/pdf${token ? `?token=${encodeURIComponent(token)}` : ''}`,
+
+  getDocxDownloadUrl: (projectId: string, token = '') =>
+    `${API_BASE}/projects/${projectId}/srs/download/docx${token ? `?token=${encodeURIComponent(token)}` : ''}`,
 };
 
 // ── Approvals ──

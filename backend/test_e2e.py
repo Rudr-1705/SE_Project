@@ -16,7 +16,7 @@ def test():
         # 1. Register with unique email to ensure idempotence
         unique_email = f"test_{uuid.uuid4().hex[:8]}@aifre.com"
         print(f"1. Register user ({unique_email})...")
-        r = c.post(f"{BASE}/auth/register", json={"email": unique_email, "password": "TestPassword123!", "full_name": "Senior Test Analyst", "role": "admin"})
+        r = c.post(f"{BASE}/auth/register", json={"email": unique_email, "password": "TestPassword123!", "full_name": "Senior Test Analyst", "role": "business_analyst"})
         assert r.status_code == 200, f"Register failed: {r.text}"
         data = r.json()
         token = data["access_token"]

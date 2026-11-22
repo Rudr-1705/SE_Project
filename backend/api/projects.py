@@ -75,6 +75,9 @@ async def get_project(
     return ProjectResponse.model_validate(project)
 
 
+STAGE_ORDER = ["interview", "extraction", "analysis", "sdlc", "srs", "approval", "completed"]
+
+
 @router.put("/{project_id}/stage")
 async def update_project_stage(
     project_id: str,
@@ -91,8 +94,46 @@ async def update_project_stage(
         raise HTTPException(status_code=403, detail="Not authorized to modify this project")
 
     new_stage = stage_data.get("stage")
-    if new_stage:
+    if not new_stage or new_stage not in STAGE_ORDER:
+        raise HTTPException(status_code=400, detail=f"Invalid stage '{new_stage}'")
+
+    current_idx = STAGE_ORDER.index(project.current_stage) if project.current_stage in STAGE_ORDER else 0
+    new_idx = STAGE_ORDER.index(new_stage)
+
+    # Allow revisiting any completed or earlier stage without losing data
+    if new_idx <= current_idx:
         project.current_stage = new_stage
         await db.flush()
+        return {"status": "success", "current_stage": project.current_stage}
 
+    # Workflow validation: enforce prerequisites when advancing forward
+    meta = project.metadata_ or {}
+    from models.requirement import Requirement
+    from models.approval import ApprovalRequest
+
+    if new_stage == "extraction":
+        history = meta.get("conversation_history", [])
+        if not history:
+            raise HTTPException(status_code=400, detail="Cannot advance to extraction: Stakeholder interview has no recorded answers.")
+    elif new_stage == "analysis":
+        req_res = await db.execute(select(Requirement).where(Requirement.project_id == project_id, Requirement.is_current == True))
+        if not req_res.scalars().first():
+            raise HTTPException(status_code=400, detail="Cannot advance to analysis: No requirements have been extracted.")
+    elif new_stage == "sdlc":
+        if not meta.get("analysis_results"):
+            raise HTTPException(status_code=400, detail="Cannot advance to SDLC: 7-dimension requirements analysis must be run first.")
+    elif new_stage == "srs":
+        req_res = await db.execute(select(Requirement).where(Requirement.project_id == project_id, Requirement.is_current == True))
+        if not req_res.scalars().first():
+            raise HTTPException(status_code=400, detail="Cannot advance to SRS: Requirements must be extracted before generation.")
+    elif new_stage == "approval":
+        if not meta.get("srs_result"):
+            raise HTTPException(status_code=400, detail="Cannot advance to approval: IEEE 29148 SRS must be generated before sign-off.")
+    elif new_stage == "completed":
+        app_res = await db.execute(select(ApprovalRequest).where(ApprovalRequest.project_id == project_id, ApprovalRequest.status == "approved"))
+        if not app_res.scalars().first():
+            raise HTTPException(status_code=400, detail="Cannot mark project completed: Formal human approval sign-off has not been granted.")
+
+    project.current_stage = new_stage
+    await db.flush()
     return {"status": "success", "current_stage": project.current_stage}

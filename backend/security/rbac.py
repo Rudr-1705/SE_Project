@@ -28,10 +28,10 @@ ROLE_PERMISSIONS = {
         "agents": ["execute"],
     },
     "business_analyst": {
-        "projects": ["read", "update"],
+        "projects": ["create", "read", "update"],
         "requirements": ["create", "read", "update"],
         "documents": ["create", "read"],
-        "approvals": ["create", "read"],
+        "approvals": ["create", "read", "approve"],
         "users": ["read"],
         "sdlc": ["read", "analyse"],
         "artefacts": ["read", "generate"],

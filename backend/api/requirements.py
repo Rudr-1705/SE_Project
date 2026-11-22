@@ -1,18 +1,20 @@
-"""Requirements API routes — extraction, analysis pipeline, CRUD."""
+"""Requirements API routes — extraction, analysis pipeline, CRUD with strict ownership."""
+import json
+import uuid
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from database import get_db
 from models.user import User
+from models.project import Project
 from models.requirement import Requirement, RequirementVersion
 from models.audit import AuditLog
 from schemas.models import RequirementCreate, RequirementUpdate, RequirementResponse
 from security.auth import get_current_user
 from security.rbac import check_permission
+from security.project_guard import verify_project_ownership
 from agents.orchestrator import get_orchestrator
-import uuid
-import json
-from datetime import datetime, timezone
 
 router = APIRouter(prefix="/api/projects/{project_id}/requirements", tags=["requirements"])
 
@@ -23,6 +25,9 @@ async def list_requirements(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """List requirements with strict project ownership check."""
+    await verify_project_ownership(project_id, user, db)
+
     result = await db.execute(
         select(Requirement)
         .where(Requirement.project_id == project_id, Requirement.is_current == True)
@@ -39,6 +44,9 @@ async def create_requirement(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """Create manual requirement with ownership and permission checks."""
+    await verify_project_ownership(project_id, user, db)
+
     if not check_permission(user, "requirements", "create"):
         raise HTTPException(status_code=403, detail="Cannot create requirements")
 
@@ -64,7 +72,7 @@ async def create_requirement(
     )
     db.add(req)
 
-    # Create initial version
+    # Initial version
     db.add(RequirementVersion(
         requirement_id=req.id, version=1,
         statement=req.statement, category=req.category, status="raw",
@@ -86,15 +94,19 @@ async def update_requirement(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """Update requirement with ownership verification."""
+    await verify_project_ownership(project_id, user, db)
+
     if not check_permission(user, "requirements", "update"):
         raise HTTPException(status_code=403, detail="Cannot update requirements")
 
-    result = await db.execute(select(Requirement).where(Requirement.id == req_id))
+    result = await db.execute(
+        select(Requirement).where(Requirement.id == req_id, Requirement.project_id == project_id)
+    )
     req = result.scalar_one_or_none()
     if not req:
-        raise HTTPException(status_code=404, detail="Requirement not found")
+        raise HTTPException(status_code=404, detail="Requirement not found in this project")
 
-    # Save version snapshot before update
     req.version += 1
     db.add(RequirementVersion(
         requirement_id=req.id, version=req.version,
@@ -109,7 +121,6 @@ async def update_requirement(
         changed_by=user.id,
     ))
 
-    # Apply updates
     if data.statement:
         req.statement = data.statement
     if data.category:
@@ -138,8 +149,20 @@ async def extract_requirements(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Extract requirements from text using the extraction agent and persist deduplicated."""
+    """Extract requirements with ownership check and workflow transition validation."""
+    project = await verify_project_ownership(project_id, user, db)
+
     orchestrator = get_orchestrator()
+    await orchestrator.sync_from_db(project_id, db)
+    session = orchestrator.get_session_state(project_id)
+
+    # Workflow check: must have conversation history or provided text
+    if not text and session.get("conversation_length", 0) == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot extract requirements: No interview answers recorded and no text provided."
+        )
+
     result = await orchestrator.extract_requirements(
         project_id, user.id, text, source_type, db=db
     )
@@ -216,7 +239,19 @@ async def analyse_requirements(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Run the full analysis pipeline on project requirements."""
+    """Run full analysis pipeline with ownership check and requirement prerequisite check."""
+    await verify_project_ownership(project_id, user, db)
+
+    # Workflow check: verify at least 1 requirement exists
+    req_check = await db.execute(
+        select(Requirement).where(Requirement.project_id == project_id, Requirement.is_current == True)
+    )
+    if not req_check.scalars().first():
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot run analysis: Project has no extracted requirements."
+        )
+
     orchestrator = get_orchestrator()
     result = await orchestrator.run_analysis_pipeline(project_id, user.id, db=db)
     return result
@@ -228,9 +263,10 @@ async def get_analysis_results(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get stored analysis pipeline results."""
+    """Get stored analysis pipeline results with ownership verification."""
+    await verify_project_ownership(project_id, user, db)
+
     orchestrator = get_orchestrator()
     await orchestrator.sync_from_db(project_id, db)
-    session = orchestrator.get_session_state(project_id)
     raw = orchestrator._get_session(project_id)
     return raw.get("analysis_results", {})

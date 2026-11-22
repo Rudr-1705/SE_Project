@@ -1,4 +1,6 @@
-"""Approval workflow API — review, approve, reject, and request changes."""
+"""Approval workflow API — review, approve, reject, and request changes with ownership checks."""
+from datetime import datetime, timezone
+import uuid
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -14,8 +16,7 @@ from schemas.models import (
 )
 from security.auth import get_current_user
 from security.rbac import check_permission
-from datetime import datetime, timezone
-import uuid
+from security.project_guard import verify_project_ownership
 
 router = APIRouter(prefix="/api/projects/{project_id}/approvals", tags=["approvals"])
 
@@ -27,6 +28,9 @@ async def list_approvals(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """List approvals with strict project ownership verification."""
+    project = await verify_project_ownership(project_id, user, db)
+
     query = select(ApprovalRequest).options(selectinload(ApprovalRequest.actions)).where(ApprovalRequest.project_id == project_id)
     if status:
         query = query.where(ApprovalRequest.status == status)
@@ -35,26 +39,23 @@ async def list_approvals(
 
     # If no approval requests exist yet for this project, create default baseline approval
     if not approvals:
-        res = await db.execute(select(Project).where(Project.id == project_id))
-        proj = res.scalar_one_or_none()
-        if proj:
-            default_app = ApprovalRequest(
-                id=str(uuid.uuid4()),
-                project_id=project_id,
-                request_type="requirement_baseline",
-                title=f"Requirements Baseline Sign-Off: {proj.name}",
-                description="Formal requirements baseline verification for statutory KYC/AML compliance, cybersecurity controls, and functional feasibility.",
-                target_type="requirements",
-                target_id=project_id,
-                target_data={"version": "1.0", "status": "pending_stakeholder_review"},
-                required_roles=["admin", "project_manager", "business_analyst", "compliance_officer", "security_officer", "stakeholder", "architect"],
-                status="pending",
-                priority="high",
-            )
-            default_app.actions = []
-            db.add(default_app)
-            await db.flush()
-            approvals = [default_app]
+        default_app = ApprovalRequest(
+            id=str(uuid.uuid4()),
+            project_id=project_id,
+            request_type="requirement_baseline",
+            title=f"Requirements Baseline Sign-Off: {project.name}",
+            description="Formal requirements baseline verification for statutory KYC/AML compliance, cybersecurity controls, and functional feasibility.",
+            target_type="requirements",
+            target_id=project_id,
+            target_data={"version": "1.0", "status": "pending_stakeholder_review"},
+            required_roles=["admin", "project_manager", "business_analyst", "compliance_officer", "security_officer", "stakeholder", "architect"],
+            status="pending",
+            priority="high",
+        )
+        default_app.actions = []
+        db.add(default_app)
+        await db.flush()
+        approvals = [default_app]
 
     return [ApprovalRequestResponse.model_validate(a) for a in approvals]
 
@@ -66,6 +67,9 @@ async def create_approval(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """Create approval request with ownership check."""
+    await verify_project_ownership(project_id, user, db)
+
     if not check_permission(user, "approvals", "create"):
         raise HTTPException(status_code=403, detail="Cannot create approvals")
 
@@ -97,12 +101,16 @@ async def perform_approval_action(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """Perform review action (approve, reject, request changes) with ownership check."""
+    project = await verify_project_ownership(project_id, user, db)
+
     result = await db.execute(
-        select(ApprovalRequest).where(ApprovalRequest.id == approval_id)
+        select(ApprovalRequest).options(selectinload(ApprovalRequest.actions))
+        .where(ApprovalRequest.id == approval_id, ApprovalRequest.project_id == project_id)
     )
     approval = result.scalar_one_or_none()
     if not approval:
-        raise HTTPException(status_code=404, detail="Approval not found")
+        raise HTTPException(status_code=404, detail="Approval request not found in this project")
 
     # Check if user's role is in required_roles (or admin)
     if approval.required_roles and user.role not in approval.required_roles and user.role != "admin":
@@ -140,12 +148,25 @@ async def perform_approval_action(
         details={"comments": data.comments, "status": approval.status}
     ))
 
-    # If approved, update project stage to completed
+    # If approved, update project stage to completed and update SRS approval status
     if approval.status == "approved":
-        res = await db.execute(select(Project).where(Project.id == project_id))
-        proj = res.scalar_one_or_none()
-        if proj:
-            proj.current_stage = "completed"
+        project.current_stage = "completed"
+        try:
+            from agents.orchestrator import get_orchestrator
+            from agents.srs_generator import generate_srs_pdf, generate_srs_docx
+            orchestrator = get_orchestrator()
+            session = orchestrator._get_session(project_id)
+            if session.get("srs_result"):
+                srs_data = session["srs_result"].get("srs_data", {})
+                if "metadata" in srs_data:
+                    srs_data["metadata"]["status"] = "APPROVED BASELINE"
+                    srs_data["metadata"]["version"] = "1.0 Baseline"
+                if session["srs_result"].get("pdf_path"):
+                    generate_srs_pdf(srs_data, session["srs_result"]["pdf_path"])
+                if session["srs_result"].get("docx_path"):
+                    generate_srs_docx(srs_data, session["srs_result"]["docx_path"])
+        except Exception:
+            pass
 
     await db.flush()
     return {

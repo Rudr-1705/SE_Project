@@ -25,6 +25,8 @@ class DocumentationAgent(BaseAgent):
         security_data = data.get("security_analysis", [])
         risk_data = data.get("risk_assessment", [])
         sdlc_data = data.get("sdlc", {})
+        jurisdiction = data.get("jurisdiction", "US")
+        approval_status = data.get("approval_status", "pending")
 
         # Build IEEE 29148 SRS Data Structure
         srs_data = build_ieee_srs_data(
@@ -35,6 +37,8 @@ class DocumentationAgent(BaseAgent):
             security_data=security_data,
             risk_data=risk_data,
             sdlc_data=sdlc_data,
+            jurisdiction=jurisdiction,
+            approval_status=approval_status,
         )
 
         # File output paths

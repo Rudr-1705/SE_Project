@@ -36,6 +36,14 @@ from sqlalchemy import text
 
 async def init_db():
     """Create all tables and apply non-destructive schema migrations."""
+    import models.user
+    import models.project
+    import models.requirement
+    import models.approval
+    import models.audit
+    import models.document
+    import models.revoked_token
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         # Non-destructive migration for newly added columns

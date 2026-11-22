@@ -8,6 +8,7 @@ import logging
 import json
 import uuid
 from datetime import datetime, timezone
+from sqlalchemy import select
 from schemas.models import AgentInput, AgentOutput
 from agents.stakeholder import StakeholderAgent
 from agents.extraction import ExtractionAgent
@@ -147,7 +148,7 @@ class Orchestrator:
         return session
 
     async def persist_to_db(self, project_id: str, db=None, stage: str = None):
-        """Persist session state into Project database record."""
+        """Persist session state into Project database record and write agent audit logs."""
         session = self._get_session(project_id)
         if stage:
             session["stage"] = stage
@@ -157,6 +158,7 @@ class Orchestrator:
         try:
             from sqlalchemy import select
             from models.project import Project
+            from models.audit import AuditLog
 
             res = await db.execute(select(Project).where(Project.id == project_id))
             proj = res.scalar_one_or_none()
@@ -170,6 +172,24 @@ class Orchestrator:
                 if session.get("srs_result"):
                     meta["srs_result"] = session["srs_result"]
                 proj.metadata_ = meta
+
+                # Persist uncommitted agent audit logs to the persistent database
+                for entry in session.get("audit_trail", []):
+                    if not entry.get("_db_persisted"):
+                        db.add(AuditLog(
+                            event_type="agent",
+                            action=entry.get("action", "execute"),
+                            project_id=project_id,
+                            agent_name=entry.get("agent", ""),
+                            description=f"Agent '{entry.get('agent')}' executed '{entry.get('action')}' ({entry.get('status')})",
+                            details={
+                                "status": entry.get("status"),
+                                "confidence": entry.get("confidence"),
+                                "issues": entry.get("issues", []),
+                            }
+                        ))
+                        entry["_db_persisted"] = True
+
                 await db.flush()
         except Exception as e:
             logger.error(f"Error persisting session to DB: {e}")
@@ -311,10 +331,19 @@ class Orchestrator:
         results["conflict_detection"] = conflict.data
         self._log_audit(session, "conflict_detection", "analyse", conflict)
 
+        # Fetch project jurisdiction
+        proj_jurisdiction = "US"
+        if db:
+            from models.project import Project
+            p_res = await db.execute(select(Project).where(Project.id == project_id))
+            p_obj = p_res.scalar_one_or_none()
+            if p_obj and p_obj.jurisdiction:
+                proj_jurisdiction = p_obj.jurisdiction
+
         # Stage 4: Compliance
         compliance = await self.agents["compliance"].execute(
             AgentInput(project_id=project_id, user_id=user_id,
-                      data={"requirements": requirements})
+                      data={"requirements": requirements, "jurisdiction": proj_jurisdiction})
         )
         results["compliance"] = compliance.data
         self._log_audit(session, "compliance", "analyse", compliance)
@@ -374,8 +403,12 @@ class Orchestrator:
         await self.persist_to_db(project_id, db, stage="sdlc")
         return result.data
 
+    analyse_sdlc = run_sdlc_analysis
+
     async def generate_srs(self, project_id: str, user_id: str,
-                           project_name: str = "", project_desc: str = "", db=None) -> dict:
+                           project_name: str = "", project_desc: str = "",
+                           jurisdiction: str = "US", approval_status: str = "pending",
+                           db=None) -> dict:
         """Generate comprehensive IEEE 29148 SRS document (PDF, DOCX, JSON)."""
         await self.sync_from_db(project_id, db)
         session = self._get_session(project_id)
@@ -389,6 +422,8 @@ class Orchestrator:
             data={
                 "project_name": project_name or project_id,
                 "project_description": project_desc,
+                "jurisdiction": jurisdiction,
+                "approval_status": approval_status,
                 "requirements": session["requirements"],
                 "compliance_analysis": analysis.get("compliance", {}).get("compliance_analysis", []),
                 "security_analysis": analysis.get("security", {}).get("security_analysis", []),

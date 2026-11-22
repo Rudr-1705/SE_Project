@@ -240,6 +240,7 @@ export default function App() {
         name: newProjectName,
         description: newProjectDesc,
         use_case: newProjectUseCase,
+        jurisdiction: newProjectJurisdiction,
       });
 
       setProjects([proj, ...projects]);
@@ -444,6 +445,28 @@ export default function App() {
       setAuditTrail(trail || []);
     } catch (err: any) {
       showToast(err.message, 'error');
+    }
+  };
+
+  const handleDownloadPdf = async (projectId = activeProject?.id, safeName = activeProject?.name || 'SRS') => {
+    if (!projectId) return;
+    try {
+      showToast('Downloading IEEE 29148 PDF...', 'info');
+      await srsAPI.downloadPdf(token, projectId, `SRS_${safeName.replace(/\s+/g, '_')}.pdf`);
+      showToast('PDF downloaded successfully.', 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Download failed', 'error');
+    }
+  };
+
+  const handleDownloadDocx = async (projectId = activeProject?.id, safeName = activeProject?.name || 'SRS') => {
+    if (!projectId) return;
+    try {
+      showToast('Downloading editable DOCX...', 'info');
+      await srsAPI.downloadDocx(token, projectId, `SRS_${safeName.replace(/\s+/g, '_')}.docx`);
+      showToast('DOCX downloaded successfully.', 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Download failed', 'error');
     }
   };
 
@@ -1247,21 +1270,21 @@ export default function App() {
                       ← Back to SDLC
                     </button>
 
-                    {/* Download Buttons */}
-                    <a
-                      href={srsAPI.getPdfDownloadUrl(activeProject.id)}
-                      download
+                    {/* Download Buttons with Bearer Auth */}
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadPdf()}
                       className="btn-secondary text-xs font-semibold text-blue-700 border-blue-200 hover:bg-blue-50"
                     >
                       📄 Download PDF
-                    </a>
-                    <a
-                      href={srsAPI.getDocxDownloadUrl(activeProject.id)}
-                      download
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadDocx()}
                       className="btn-secondary text-xs font-semibold text-blue-700 border-blue-200 hover:bg-blue-50"
                     >
                       📝 Download DOCX
-                    </a>
+                    </button>
 
                     <button
                       onClick={handleProceedToApproval}
@@ -1444,20 +1467,20 @@ export default function App() {
                   </p>
 
                   <div className="flex flex-wrap items-center justify-center gap-4 mt-6">
-                    <a
-                      href={srsAPI.getPdfDownloadUrl(activeProject.id)}
-                      download
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadPdf()}
                       className="btn-primary text-xs"
                     >
                       📄 Download Approved SRS (PDF)
-                    </a>
-                    <a
-                      href={srsAPI.getDocxDownloadUrl(activeProject.id)}
-                      download
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadDocx()}
                       className="btn-secondary text-xs"
                     >
                       📝 Download Approved SRS (DOCX)
-                    </a>
+                    </button>
                     <button
                       onClick={() => setShowCreateModal(true)}
                       className="btn-secondary text-xs"
@@ -1633,13 +1656,13 @@ export default function App() {
                             Open
                           </button>
                         )}
-                        <a
-                          href={srsAPI.getPdfDownloadUrl(proj.id)}
-                          download
+                        <button
+                          type="button"
+                          onClick={() => handleDownloadPdf(proj.id, proj.name)}
                           className="text-xs text-blue-600 hover:underline px-2 py-1"
                         >
                           SRS PDF
-                        </a>
+                        </button>
                       </div>
                     </div>
                   );

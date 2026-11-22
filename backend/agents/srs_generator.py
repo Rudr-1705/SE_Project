@@ -59,8 +59,9 @@ class NumberedCanvas(canvas.Canvas):
 
 def build_ieee_srs_data(project_name: str, project_desc: str, requirements: list,
                          compliance_data: list = None, security_data: list = None,
-                         risk_data: list = None, sdlc_data: dict = None) -> dict:
-    """Build the comprehensive IEEE 29148 hierarchical data structure from project records."""
+                         risk_data: list = None, sdlc_data: dict = None,
+                         jurisdiction: str = "US", approval_status: str = "pending") -> dict:
+    """Build the comprehensive IEEE 29148 hierarchical data structure from real project records."""
     compliance_data = compliance_data or []
     security_data = security_data or []
     risk_data = risk_data or []
@@ -73,16 +74,125 @@ def build_ieee_srs_data(project_name: str, project_desc: str, requirements: list
     performance_reqs = [r for r in requirements if "perf" in r.get("category", "").lower()]
     other_nfr = [r for r in requirements if r not in functional_reqs and r not in security_reqs and r not in performance_reqs]
 
+    # Approval Status
+    is_approved = (approval_status == "approved")
+    doc_status = "APPROVED BASELINE" if is_approved else "DRAFT - Pending Human Stakeholder Sign-Off"
+
+    # Derive product functions summary from actual functional requirements
+    if functional_reqs:
+        func_items = [f"{r.get('requirement_id')}: {r.get('statement')}" for r in functional_reqs[:6]]
+    else:
+        func_items = ["To be determined (TBD) — No functional requirements extracted yet from stakeholder elicitation."]
+
+    # Derive operating environment from requirements or mark TBD
+    env_reqs = [r for r in requirements if any(k in r.get("statement", "").lower() for k in ["cloud", "server", "deploy", "kubernetes", "aws", "azure", "docker", "on-premise"])]
+    env_content = env_reqs[0].get("statement") if env_reqs else f"To be determined (TBD) — Target infrastructure topology and hosting platform for '{project_name}' to be finalized during technical architecture specification."
+
+    # Derive assumptions & dependencies from requirements or mark TBD
+    dep_reqs = [f"Dependency: {r.get('requirement_id')} requires external interface" for r in requirements if any(k in r.get("statement", "").lower() for k in ["third", "api", "gateway", "service", "external"])]
+    assumptions_items = dep_reqs if dep_reqs else [
+        f"Statutory compliance is governed by {jurisdiction} financial authorities.",
+        "To be determined (TBD) — Third-party service level agreements (SLAs) and external gateway specifications to be formalized."
+    ]
+
+    # Derive performance requirements or mark TBD
+    if performance_reqs:
+        perf_list = performance_reqs
+    else:
+        perf_list = [
+            {
+                "requirement_id": "NFR-PERF-TBD",
+                "statement": "To be determined (TBD) — Explicit response latency, throughput, and concurrent session limits were not specified during elicitation and must be established prior to performance testing.",
+                "priority": "medium",
+                "acceptance_criteria": ["Benchmark latency thresholds to be documented in performance test plan"]
+            }
+        ]
+
+    # Derive security requirements from extracted reqs or analysis outputs, else mark TBD
+    if security_reqs:
+        sec_list = security_reqs
+    elif security_data:
+        sec_list = [
+            {
+                "requirement_id": s.get("requirement_id", "NFR-SEC-001"),
+                "statement": f"Security control for {s.get('requirement_id')}: {', '.join(s.get('security_controls', [])) or 'Enforce access control and encryption'}",
+                "priority": s.get("threat_level", "high").lower(),
+                "acceptance_criteria": s.get("security_controls", ["Automated security testing"])
+            }
+            for s in security_data[:5]
+        ]
+    else:
+        sec_list = [
+            {
+                "requirement_id": "NFR-SEC-TBD",
+                "statement": "To be determined (TBD) — Cryptographic standards, authentication requirements, and confidentiality controls to be specified based on organization security baseline.",
+                "priority": "high",
+                "acceptance_criteria": ["Security architecture verification required prior to baseline sign-off"]
+            }
+        ]
+
+    # Availability & Reliability: check real requirements
+    avail_reqs = [r for r in requirements if any(k in r.get("statement", "").lower() for k in ["uptime", "availability", "rto", "rpo", "99."])]
+    avail_content = avail_reqs[0].get("statement") if avail_reqs else "To be determined (TBD) — Production uptime availability percentage, Recovery Time Objective (RTO), and Recovery Point Objective (RPO) were not specified by stakeholders and must be established prior to release."
+
+    # Scalability & Maintainability
+    scale_reqs = [r for r in requirements if any(k in r.get("statement", "").lower() for k in ["scal", "concurrent", "volume", "throughput", "load"])]
+    scale_content = scale_reqs[0].get("statement") if scale_reqs else "To be determined (TBD) — Concurrency thresholds and horizontal scaling limits to be finalized in deployment architecture."
+
+    # Usability
+    usability_reqs = [r for r in requirements if "usab" in r.get("category", "").lower() or "ui" in r.get("category", "").lower() or "interface" in r.get("statement", "").lower()]
+    usab_content = usability_reqs[0].get("statement") if usability_reqs else "To be determined (TBD) — User interface usability benchmarks, error-rate thresholds, and accessibility criteria (WCAG) to be defined in UX design specification."
+
+    # Data Retention: extract actual statements containing retention or mark TBD
+    retention_rules = []
+    for r in requirements:
+        stmt = r.get("statement", "")
+        if any(k in stmt.lower() for k in ["retain", "retention", "year", "stored for", "archive"]):
+            retention_rules.append((r.get("requirement_id", "REQ"), stmt, f"Stakeholder Elicitation ({jurisdiction})"))
+    if not retention_rules:
+        retention_rules = [
+            ("Statutory Record Retention", f"To be determined (TBD) — Data retention schedules must be configured based on applicable statutory guidelines for jurisdiction: {jurisdiction}.", f"{jurisdiction} Directives")
+        ]
+
+    # Compliance items
+    if not compliance_data:
+        comp_items = [
+            {
+                "requirement_id": "ALL",
+                "applicable_regulations": [f"Applicable {jurisdiction} Regulatory Directives"],
+                "required_controls": ["To be determined (TBD) — Specific regulatory controls to be verified by designated compliance officer"],
+                "compliance_gaps": ["Formal compliance audit pending"],
+                "approval_required": True,
+            }
+        ]
+    else:
+        comp_items = compliance_data
+
+    # Risk items
+    if not risk_data:
+        rsk_items = [
+            {
+                "risk_id": "RSK-TBD",
+                "risk_description": "To be determined (TBD) — Comprehensive threat analysis and risk register to be finalized prior to architecture review.",
+                "severity": "medium",
+                "likelihood": "medium",
+                "mitigation": "Schedule formal risk assessment workshop."
+            }
+        ]
+    else:
+        rsk_items = risk_data
+
     return {
         "metadata": {
             "title": f"Software Requirements Specification (SRS)",
             "system_name": project_name or "Financial Requirements Platform",
             "subtitle": f"Prepared in compliance with IEEE Std 29148-2018 Standards",
-            "version": "1.0 Baseline",
-            "status": "APPROVED BASELINE",
+            "version": "1.0 Baseline" if is_approved else "1.0 Draft",
+            "status": doc_status,
             "date": now_str,
+            "jurisdiction": jurisdiction,
             "classification": "CONFIDENTIAL / REGULATED FINANCIAL SYSTEM",
-            "description": project_desc or "Automated financial transaction and compliance processing platform.",
+            "description": project_desc or "Financial requirements specification and compliance governance baseline.",
         },
         "sections": [
             {
@@ -92,12 +202,12 @@ def build_ieee_srs_data(project_name: str, project_desc: str, requirements: list
                     {
                         "num": "1.1",
                         "title": "Purpose",
-                        "content": f"This Software Requirements Specification (SRS) establishes the formal, verifiable requirements baseline for the '{project_name}'. It defines functional behaviors, external interfaces, non-functional quality attributes, statutory compliance obligations, security controls, and design constraints in accordance with IEEE Std 29148-2018 principles."
+                        "content": f"This Software Requirements Specification (SRS) establishes the formal, verifiable requirements baseline for '{project_name}'. It defines functional behaviors, external interfaces, non-functional quality attributes, statutory compliance obligations, security controls, and design constraints in accordance with IEEE Std 29148-2018 principles."
                     },
                     {
                         "num": "1.2",
                         "title": "Document Scope",
-                        "content": f"The scope of this document encompasses all core subsystems for '{project_name}', including customer intake, identity and KYC verification, automated decisioning, ledger management, risk mitigation, and audit record generation. This document governs implementation, verification, and regulatory auditing."
+                        "content": f"The scope of this document encompasses all verified requirements for '{project_name}' operating under jurisdiction: {jurisdiction}. It governs system implementation, verification, and regulatory compliance. Unspecified operational details are marked as TBD and must be resolved before technical baselining."
                     },
                     {
                         "num": "1.3",
@@ -105,16 +215,13 @@ def build_ieee_srs_data(project_name: str, project_desc: str, requirements: list
                         "definitions": [
                             ("AIFRE", "Agentic AI Financial Requirements Engineering Platform"),
                             ("AML", "Anti-Money Laundering regulatory directives"),
-                            ("DTI", "Debt-To-Income ratio used in underwriting evaluations"),
-                            ("KMS", "Key Management Service for cryptographic operations"),
                             ("KYC", "Know Your Customer statutory customer due diligence"),
-                            ("MFA", "Multi-Factor Authentication (minimum 2 independent factors)"),
                             ("PII", "Personally Identifiable Information"),
                             ("RBAC", "Role-Based Access Control"),
                             ("RTM", "Requirements Traceability Matrix"),
-                            ("SRS", "Software Requirements Specification (IEEE 29148)"),
-                            ("TLS", "Transport Layer Security (minimum version 1.3 enforced)"),
-                            ("WORM", "Write Once, Read Many immutable storage media")
+                            ("SRS", "Software Requirements Specification (IEEE 29148-2018)"),
+                            ("TBD", "To Be Determined — Unspecified detail requiring formal engineering resolution"),
+                            ("TLS", "Transport Layer Security"),
                         ]
                     },
                     {
@@ -123,9 +230,7 @@ def build_ieee_srs_data(project_name: str, project_desc: str, requirements: list
                         "references": [
                             "IEEE Std 29148-2018: Systems and software engineering — Life cycle processes — Requirements engineering",
                             "ISO/IEC 27001:2022: Information security, cybersecurity and privacy protection",
-                            "NIST Special Publication 800-52 Rev. 2: Guidelines for the Selection and Use of TLS",
-                            "Federal Financial Institutions Examination Council (FFIEC) IT Examination Handbook",
-                            "Financial Action Task Force (FATF) Guidance on Digital Identity (KYC/AML Standards)"
+                            f"{jurisdiction} Financial Regulatory Compliance and Due Diligence Guidelines"
                         ]
                     }
                 ]
@@ -137,53 +242,42 @@ def build_ieee_srs_data(project_name: str, project_desc: str, requirements: list
                     {
                         "num": "2.1",
                         "title": "Product Perspective",
-                        "content": f"'{project_name}' operates as an enterprise-grade financial management platform. It interfaces upstream with consumer facing web/mobile intake portals and downstream with institutional core banking engines, national credit bureaus, identity verification services, and immutable compliance archives."
+                        "content": f"'{project_name}' operates as a financial management system within jurisdiction '{jurisdiction}'. It automates stakeholder-driven business workflows while maintaining strict regulatory compliance, security boundaries, and immutable audit tracking."
                     },
                     {
                         "num": "2.2",
                         "title": "Product Functions Summary",
-                        "items": [
-                            "Digital applicant onboarding with positive identity verification and document authentication",
-                            "Real-time automated credit risk scoring and debt-to-income ratio computation",
-                            "Policy-driven loan structuring, limit validation, and approval workflow routing",
-                            "Hardware-secured cryptographic data protection at rest and across all transport channels",
-                            "Immutable audit logging capturing all system transactions, state changes, and staff actions"
-                        ]
+                        "items": func_items
                     },
                     {
                         "num": "2.3",
                         "title": "User Classes and Characteristics",
                         "user_classes": [
-                            ("Borrower / Applicant", "External user seeking financing; requires simple, responsive mobile/web intake."),
-                            ("Loan Officer", "Front-office staff initiating, verifying documentation, and liaising with applicants."),
-                            ("Underwriter", "Credit assessment specialist reviewing risk scores, exceptions, and approving loan terms."),
-                            ("Compliance Officer", "Internal auditor reviewing regulatory compliance, KYC flags, and suspicious activities."),
-                            ("System Administrator", "Privileged engineer overseeing infrastructure, user provisioning, and KMS keys.")
+                            ("Business Analyst", "Requirements engineer defining functional behaviors and regulatory obligations."),
+                            ("Compliance Officer", f"Specialist ensuring adherence to {jurisdiction} statutory financial directives."),
+                            ("Security Officer", "Auditor evaluating threat modeling, encryption, and cryptographic integrity."),
+                            ("Project Manager", "Reviewer validating project scope, schedule, and baseline approvals.")
                         ]
                     },
                     {
                         "num": "2.4",
                         "title": "Operating Environment",
-                        "content": "The system shall be deployed in a high-availability, multi-region containerized cloud environment (Kubernetes). Microservices communicate over mutual TLS (mTLS). Persistent relational data is stored in high-performance transactional engines with synchronous replication, and long-term audit trails are preserved in WORM storage."
+                        "content": env_content
                     },
                     {
                         "num": "2.5",
                         "title": "Design and Implementation Constraints",
                         "items": [
-                            "Cryptographic implementations must utilize FIPS 140-3 validated modules (AES-256-GCM, SHA-384).",
-                            "All API contracts must enforce OpenAPI 3.1 specifications with strict schema validation.",
-                            "Direct database updates outside the application domain layer are strictly prohibited.",
-                            "All code artifacts must pass automated static application security testing (SAST) with zero high/critical vulnerabilities prior to deployment."
+                            f"System data processing and storage must comply with applicable {jurisdiction} data sovereignty directives.",
+                            "All API contracts must enforce validated schemas with strict boundary checks.",
+                            "Cryptographic implementations must utilize modern industry-standard algorithms (AES-256, TLS 1.3).",
+                            "Unspecified specifications marked as TBD must be resolved prior to production baselining."
                         ]
                     },
                     {
                         "num": "2.6",
                         "title": "Assumptions and Dependencies",
-                        "items": [
-                            "Third-party credit bureau APIs maintain an operational SLA of at least 99.9% availability.",
-                            "Government identity database lookups are accessible via secure national gateway APIs.",
-                            "All administrative operations are conducted on secure, institutionally managed endpoints with endpoint detection and response (EDR)."
-                        ]
+                        "items": assumptions_items
                     }
                 ]
             },
@@ -191,7 +285,7 @@ def build_ieee_srs_data(project_name: str, project_desc: str, requirements: list
                 "num": "3",
                 "title": "Specific Functional Requirements",
                 "requirements": functional_reqs,
-                "note": "Each functional requirement defines explicit inputs, processing behavior, measurable outputs, and testable acceptance criteria."
+                "note": "Each functional requirement defines explicit inputs, processing behavior, measurable outputs, and testable acceptance criteria derived from actual stakeholder elicitation."
             },
             {
                 "num": "4",
@@ -200,27 +294,26 @@ def build_ieee_srs_data(project_name: str, project_desc: str, requirements: list
                     {
                         "num": "4.1",
                         "title": "User Interfaces",
-                        "content": "The user interface shall adhere to WCAG 2.1 Level AA accessibility standards. Administrative portals must provide responsive dashboards with instantaneous data filtering, visual status steppers, and clear action confirmations."
+                        "content": "The user interface shall provide responsive, accessible web workflows with clear validation cues and state indicators."
                     },
                     {
                         "num": "4.2",
                         "title": "Hardware Interfaces",
-                        "content": "The system communicates with Hardware Security Modules (HSMs) for cryptographic master key management, digital signature verification, and secure random number generation."
+                        "content": "To be determined (TBD) — Specialized hardware interfaces (such as Hardware Security Modules or biometric capture devices) to be confirmed during detailed design."
                     },
                     {
                         "num": "4.3",
                         "title": "Software Interfaces",
                         "interfaces": [
-                            ("Core Banking Integration", "RESTful JSON APIs over mTLS for disbursement and ledger synchronization."),
-                            ("Credit Bureau Gateway", "Standardized bureau interface protocols for credit report pulling and scoring."),
-                            ("Identity Verification Service", "Biometric liveness detection and government ID image authentication."),
-                            ("Enterprise Notification Engine", "Asynchronous messaging (Kafka/RabbitMQ) for email/SMS multi-factor and alert dispatch.")
+                            ("Identity Verification Service", "Interface for customer identity and KYC document verification if mandated by workflow."),
+                            ("Data Persistence Engine", "Relational database interface for transactional records and audit history."),
+                            ("Notification Gateway", "Messaging interface for system notifications and multi-factor alerts.")
                         ]
                     },
                     {
                         "num": "4.4",
                         "title": "Communications Interfaces",
-                        "content": "All inter-service and client communications strictly require TLS 1.3 with forward secrecy. Deprecated protocols (TLS 1.0, 1.1, 1.2) are disabled at network gateway proxies."
+                        "content": "All inter-service and client-server communications shall enforce encrypted transport using TLS 1.3 or higher with strong cipher suites."
                     }
                 ]
             },
@@ -231,66 +324,47 @@ def build_ieee_srs_data(project_name: str, project_desc: str, requirements: list
                     {
                         "num": "5.1",
                         "title": "Performance Requirements",
-                        "requirements": performance_reqs or [
-                            {
-                                "requirement_id": "NFR-PERF-001",
-                                "statement": "The system shall maintain 95th percentile API response times under 2.5 seconds for all user-facing requests under a concurrent load of at least 500 active sessions.",
-                                "priority": "high",
-                                "acceptance_criteria": ["2.5s p95 latency under benchmark load", "Zero request timeouts under nominal peak"]
-                            }
-                        ]
+                        "requirements": perf_list
                     },
                     {
                         "num": "5.2",
                         "title": "Security & Cryptographic Requirements",
-                        "requirements": security_reqs or [
-                            {
-                                "requirement_id": "NFR-SEC-001",
-                                "statement": "All sensitive customer personally identifiable information (PII) and financial records shall be encrypted at rest using AES-256 and in transit using TLS 1.3.",
-                                "priority": "critical",
-                                "acceptance_criteria": ["AES-256 database column encryption", "Mandatory TLS 1.3 cipher negotiation"]
-                            }
-                        ]
+                        "requirements": sec_list
                     },
                     {
                         "num": "5.3",
                         "title": "Reliability and Availability",
-                        "content": "The production platform shall achieve 99.95% uptime availability (less than 4.38 hours of unscheduled downtime annually). Recovery Time Objective (RTO) shall not exceed 15 minutes, and Recovery Point Objective (RPO) shall be less than 60 seconds."
+                        "content": avail_content
                     },
                     {
                         "num": "5.4",
                         "title": "Scalability and Maintainability",
-                        "content": "The architecture shall leverage stateless microservices with horizontal auto-scaling (HPA). The data layer shall support database sharding and read replicas to sustain 500% volume growth without architectural refactoring."
+                        "content": scale_content
                     },
                     {
                         "num": "5.5",
                         "title": "Usability",
-                        "content": "Customer onboarding workflows shall complete with a drop-off rate of less than 12%. Input fields shall feature instant inline validation, and complex terminology shall include contextual tooltips."
+                        "content": usab_content
                     }
                 ]
             },
             {
                 "num": "6",
                 "title": "Data Requirements and Retention",
-                "content": "Data schemas enforce strict relational integrity and PII classification. Storage adheres to statutory retention mandates:",
-                "retention_rules": [
-                    ("Customer Identification & KYC Data", "5 Years post account closure", "Statutory KYC Mandates"),
-                    ("Loan Transaction & Payment Records", "7 Years from final settlement", "Statutory Banking Regulations"),
-                    ("Credit Assessment & Decision Records", "7 Years from decision date", "Fair Lending Standards"),
-                    ("Security Incident & Access Logs", "10 Years immutable retention", "Enterprise Cybersecurity Governance")
-                ]
+                "content": f"Data schemas enforce relational integrity and PII classification. Retention schedules reflect stakeholder inputs and {jurisdiction} statutory standards:",
+                "retention_rules": retention_rules
             },
             {
                 "num": "7",
                 "title": "Regulatory Compliance & Legal Considerations",
-                "content": "The system embeds controls satisfying statutory financial regulations. All AI-driven compliance findings are advisory and must be verified by designated compliance officers.",
-                "compliance_items": compliance_data
+                "content": f"Regulatory analysis grounded in {jurisdiction} financial frameworks. All AI-driven compliance findings are advisory and require human legal/compliance sign-off.",
+                "compliance_items": comp_items
             },
             {
                 "num": "8",
                 "title": "Threat Modeling and Risk Register",
-                "content": "Systematic threat assessment and mitigation matrix compiled from automated risk analysis:",
-                "risks": risk_data
+                "content": "Systematic threat assessment and mitigation matrix compiled from validated risk analysis outputs:",
+                "risks": rsk_items
             },
             {
                 "num": "9",
@@ -308,8 +382,8 @@ def build_ieee_srs_data(project_name: str, project_desc: str, requirements: list
                         "statement": r.get("statement", "")[:120] + ("..." if len(r.get("statement", "")) > 120 else ""),
                         "category": r.get("category", "functional"),
                         "priority": r.get("priority", "medium"),
-                        "regulations": ", ".join(r.get("applicable_regulations", [])) or "Internal Standard",
-                        "test_criteria": (r.get("acceptance_criteria") or ["Automated verification"])[0] if isinstance(r.get("acceptance_criteria"), list) else "Automated verification"
+                        "regulations": ", ".join(r.get("applicable_regulations", [])) or f"{jurisdiction} Financial Standard",
+                        "test_criteria": (r.get("acceptance_criteria") or ["Automated verification"])[0] if isinstance(r.get("acceptance_criteria"), list) and r.get("acceptance_criteria") else "Automated verification"
                     }
                     for r in requirements
                 ]
@@ -317,12 +391,12 @@ def build_ieee_srs_data(project_name: str, project_desc: str, requirements: list
             {
                 "num": "11",
                 "title": "Appendices and Approval Sign-Off",
-                "content": "This document represents the formal software requirements baseline. Changes to approved baseline specifications require formal Change Request submission and multi-stakeholder sign-off.",
+                "content": f"Document approval status: {doc_status}. Formal sign-off by authorized stakeholders is required before requirements are baselined for development.",
                 "sign_offs": [
                     ("Project Manager", "Operational feasibility, schedule, and resource allocation"),
                     ("Lead Software Architect", "Architectural compliance, scalability, and technical constraints"),
-                    ("Chief Information Security Officer (CISO)", "Security posture, encryption, threat mitigations, and RBAC"),
-                    ("Chief Compliance Officer (CCO)", "Statutory alignment (KYC/AML/Data Protection) and audit readiness")
+                    ("Security Officer", "Security posture, encryption, threat mitigations, and RBAC"),
+                    ("Compliance Officer", f"Statutory alignment ({jurisdiction} KYC/AML/Data Protection) and audit readiness")
                 ]
             }
         ]
