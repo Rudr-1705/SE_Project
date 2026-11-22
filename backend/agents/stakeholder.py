@@ -34,11 +34,29 @@ class StakeholderAgent(BaseAgent):
 
         # Build context from conversation history
         history_text = ""
-        for msg in conversation_history[-10:]:  # Last 10 messages
+        for msg in conversation_history[-10:]:
             history_text += f"\n{msg.get('role', 'user')}: {msg.get('content', '')}"
 
         topics_remaining = [t for t in INTERVIEW_TOPICS if t not in topics_covered]
-        progress = len(topics_covered) / len(INTERVIEW_TOPICS)
+
+        # End interview when all topics have been covered
+        if not topics_remaining:
+            return AgentOutput(
+                agent_name=self.name,
+                status="success",
+                data={
+                    "question": "Thank you. We have covered all the major requirements.",
+                    "topic": "wrap_up",
+                    "follow_up": False,
+                    "reasoning": "All interview topics have been covered.",
+                    "topics_covered": topics_covered,
+                    "topics_remaining": [],
+                    "progress": 1.0,
+                    "completed": True,
+                },
+                confidence=1.0,
+                citations=[],
+            )
 
         prompt = f"""Stakeholder role: {stakeholder_role}
 Topics already covered: {', '.join(topics_covered) or 'None'}
@@ -52,23 +70,34 @@ Respond as JSON with: question, topic, follow_up, reasoning."""
         result = await self.llm.generate_structured(prompt, SYSTEM_PROMPT)
         response_data = result["data"]
 
-        # Track which topic this question covers
         topic = response_data.get("topic", "general")
-        if topic not in topics_covered and topic in INTERVIEW_TOPICS:
+
+        # Track the topic covered by this question
+        if topic in INTERVIEW_TOPICS and topic not in topics_covered:
             topics_covered.append(topic)
+
+        # Recalculate progress after updating topics
+        updated_remaining = [
+            t for t in INTERVIEW_TOPICS if t not in topics_covered
+        ]
 
         return AgentOutput(
             agent_name=self.name,
             status="success",
             data={
-                "question": response_data.get("question", "Could you elaborate on your requirements?"),
+                "question": response_data.get(
+                    "question", "Could you elaborate on your requirements?"
+                ),
                 "topic": topic,
                 "follow_up": response_data.get("follow_up", True),
                 "reasoning": response_data.get("reasoning", ""),
                 "topics_covered": topics_covered,
-                "topics_remaining": topics_remaining,
-                "progress": progress,
+                "topics_remaining": updated_remaining,
+                "progress": len(topics_covered) / len(INTERVIEW_TOPICS),
+                "completed": not updated_remaining,
             },
             confidence=0.85,
-            citations=[{"source": "interview_context", "model": result.get("model_info", {})}],
+            citations=[
+                {"source": "interview_context", "model": result.get("model_info", {})}
+            ],
         )

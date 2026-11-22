@@ -176,6 +176,18 @@ MOCK_INTERVIEW_QUESTIONS = {
         "What are the peak load periods and expected concurrent user counts?",
         "Are there specific availability or uptime requirements?"
     ],
+    "exceptional_conditions": [
+    "How should the system handle incomplete applications, invalid documents, or failed verification?"
+    ],
+    "audit_reporting": [
+        "What audit logs and operational reports should the system generate?"
+    ],
+    "transaction_limits": [
+        "Are there any minimum or maximum loan amounts or transaction limits?"
+    ],
+    "schedule_budget": [
+        "Are there any project deadlines, implementation milestones, or budget constraints?"
+    ],
 }
 
 MOCK_QUALITY_ISSUES = {
@@ -267,24 +279,58 @@ class MockLLMProvider(BaseLLMProvider):
 
     # ── Mock response generators ──
 
+    
     def _mock_interview_response(self, prompt: str) -> str:
-        # Determine topic based on what's already been covered
-        for topic, questions in MOCK_INTERVIEW_QUESTIONS.items():
-            if topic in prompt.lower():
-                continue
-            q = random.choice(questions)
+        # Read the explicitly provided remaining topics.
+        remaining_line = next(
+            (
+                line for line in prompt.splitlines()
+                if line.strip().startswith("Topics remaining:")
+            ),
+            ""
+        )
+
+        remaining_text = remaining_line.split(":", 1)[-1].strip()
+        remaining_topics = [
+            topic.strip()
+            for topic in remaining_text.split(",")
+            if topic.strip() and topic.strip() != "None"
+        ]
+
+        # Select the first remaining topic supported by mock questions.
+        topic = next(
+            (
+                topic for topic in remaining_topics
+                if topic in MOCK_INTERVIEW_QUESTIONS
+            ),
+            None
+        )
+
+        # Only wrap up when no supported topics remain.
+        if topic is None:
             return json.dumps({
-                "question": q,
-                "topic": topic,
-                "follow_up": True,
-                "reasoning": f"Gathering information about {topic.replace('_', ' ')} to ensure comprehensive requirements coverage."
+                "question": (
+                    "Based on our discussion, are there any "
+                    "additional requirements or constraints "
+                    "you'd like to highlight?"
+                ),
+                "topic": "wrap_up",
+                "follow_up": False,
+                "reasoning": "All supported interview topics have been covered."
             })
+
+        question = MOCK_INTERVIEW_QUESTIONS[topic][0]
+
         return json.dumps({
-            "question": "Based on our discussion, are there any additional requirements or constraints you'd like to highlight?",
-            "topic": "wrap_up",
-            "follow_up": False,
-            "reasoning": "All major topics have been covered. Offering opportunity for additional input."
+            "question": question,
+            "topic": topic,
+            "follow_up": True,
+            "reasoning": (
+                f"Gathering information about "
+                f"{topic.replace('_', ' ')}."
+            )
         })
+
 
     def _mock_extraction_response(self, prompt: str) -> str:
         # Return a subset of mock requirements
