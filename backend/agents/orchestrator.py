@@ -1,8 +1,8 @@
 """Agent Orchestrator — central state machine coordinating all specialised agents.
 
-Manages: agent communication, execution order, shared context, approval gates.
-Pipeline: extraction → clarification → classification → conflict detection →
-          compliance → security → risk → validation → documentation → SDLC → approval
+Manages: agent communication, execution order, shared context, approval gates, DB persistence.
+Pipeline: interview → extraction → clarification → classification → conflict detection →
+          compliance → security → risk → validation → SDLC → SRS documentation → human approval
 """
 import logging
 import json
@@ -24,15 +24,14 @@ from agents.approval import ApprovalAgent
 
 logger = logging.getLogger(__name__)
 
-# Pipeline stages in execution order
+# Sequential Pipeline stages in execution order
 PIPELINE_STAGES = [
-    "extraction", "clarification", "classification", "conflict_detection",
-    "compliance", "security_privacy", "risk_analysis", "validation",
+    "interview", "extraction", "analysis", "sdlc", "srs", "approval", "completed"
 ]
 
 
 class Orchestrator:
-    """Central state machine that coordinates all agents."""
+    """Central state machine that coordinates all agents with persistent state."""
 
     def __init__(self):
         self.agents = {
@@ -49,7 +48,7 @@ class Orchestrator:
             "validation": ValidationAgent(),
             "human_approval": ApprovalAgent(),
         }
-        # Shared state per project
+        # In-memory session cache per project
         self.sessions: dict[str, dict] = {}
 
     def _get_session(self, project_id: str) -> dict:
@@ -57,20 +56,128 @@ class Orchestrator:
             self.sessions[project_id] = {
                 "id": str(uuid.uuid4()),
                 "project_id": project_id,
-                "stage": "idle",
+                "stage": "interview",
                 "requirements": [],
                 "conversation_history": [],
                 "topics_covered": [],
                 "analysis_results": {},
+                "srs_result": None,
                 "approval_requests": [],
                 "audit_trail": [],
                 "created_at": datetime.now(timezone.utc).isoformat(),
             }
         return self.sessions[project_id]
 
+    async def sync_from_db(self, project_id: str, db=None) -> dict:
+        """Hydrate in-memory session with database records to survive restarts."""
+        session = self._get_session(project_id)
+        if db is None:
+            return session
+
+        try:
+            from sqlalchemy import select
+            from models.project import Project
+            from models.requirement import Requirement
+            from models.approval import ApprovalRequest
+
+            # 1. Project metadata & stage
+            res = await db.execute(select(Project).where(Project.id == project_id))
+            proj = res.scalar_one_or_none()
+            if proj:
+                if proj.current_stage:
+                    session["stage"] = proj.current_stage
+                meta = proj.metadata_ or {}
+                if meta.get("conversation_history") and not session["conversation_history"]:
+                    session["conversation_history"] = meta["conversation_history"]
+                if meta.get("topics_covered") and not session["topics_covered"]:
+                    session["topics_covered"] = meta["topics_covered"]
+                if meta.get("analysis_results") and not session["analysis_results"]:
+                    session["analysis_results"] = meta["analysis_results"]
+                if meta.get("srs_result") and not session["srs_result"]:
+                    session["srs_result"] = meta["srs_result"]
+
+            # 2. Database requirements
+            req_res = await db.execute(
+                select(Requirement)
+                .where(Requirement.project_id == project_id, Requirement.is_current == True)
+                .order_by(Requirement.requirement_id.asc())
+            )
+            db_reqs = req_res.scalars().all()
+            if db_reqs:
+                # Merge with DB
+                loaded = []
+                for r in db_reqs:
+                    loaded.append({
+                        "id": r.id,
+                        "requirement_id": r.requirement_id,
+                        "statement": r.statement,
+                        "category": r.category,
+                        "subcategory": r.subcategory or "",
+                        "priority": r.priority,
+                        "business_justification": r.business_justification or "",
+                        "acceptance_criteria": r.acceptance_criteria or [],
+                        "applicable_regulations": r.applicable_regulations or [],
+                        "risks": r.risks or [],
+                        "confidence": float(r.confidence or 0.85),
+                        "status": r.status,
+                        "source": r.source or "",
+                    })
+                session["requirements"] = loaded
+
+            # 3. Approvals
+            app_res = await db.execute(
+                select(ApprovalRequest).where(ApprovalRequest.project_id == project_id)
+            )
+            db_approvals = app_res.scalars().all()
+            if db_approvals:
+                session["approval_requests"] = [
+                    {
+                        "id": a.id,
+                        "title": a.title,
+                        "status": a.status,
+                        "request_type": a.request_type,
+                        "required_roles": a.required_roles,
+                    }
+                    for a in db_approvals
+                ]
+
+        except Exception as e:
+            logger.error(f"Error synchronizing session from DB: {e}")
+
+        return session
+
+    async def persist_to_db(self, project_id: str, db=None, stage: str = None):
+        """Persist session state into Project database record."""
+        session = self._get_session(project_id)
+        if stage:
+            session["stage"] = stage
+        if db is None:
+            return
+
+        try:
+            from sqlalchemy import select
+            from models.project import Project
+
+            res = await db.execute(select(Project).where(Project.id == project_id))
+            proj = res.scalar_one_or_none()
+            if proj:
+                if stage:
+                    proj.current_stage = stage
+                meta = dict(proj.metadata_ or {})
+                meta["conversation_history"] = session.get("conversation_history", [])
+                meta["topics_covered"] = session.get("topics_covered", [])
+                meta["analysis_results"] = session.get("analysis_results", {})
+                if session.get("srs_result"):
+                    meta["srs_result"] = session["srs_result"]
+                proj.metadata_ = meta
+                await db.flush()
+        except Exception as e:
+            logger.error(f"Error persisting session to DB: {e}")
+
     async def start_interview(self, project_id: str, user_id: str,
-                               stakeholder_role: str = "business_analyst") -> dict:
+                               stakeholder_role: str = "business_analyst", db=None) -> dict:
         """Start adaptive stakeholder interview."""
+        await self.sync_from_db(project_id, db)
         session = self._get_session(project_id)
         session["stage"] = "interview"
 
@@ -87,11 +194,18 @@ class Orchestrator:
         )
 
         result = await self.agents["stakeholder_interaction"].execute(agent_input)
-        self._log_audit(session, "stakeholder_interaction", "interview_question", result)
+        question = result.data.get("question", "")
+        # Add initial assistant greeting if history is empty
+        if not session["conversation_history"]:
+            session["conversation_history"].append({"role": "assistant", "content": question})
+
+        self._log_audit(session, "stakeholder_interaction", "interview_start", result)
+        await self.persist_to_db(project_id, db, stage="interview")
         return result.data
 
-    async def answer_interview(self, project_id: str, user_id: str, answer: str) -> dict:
+    async def answer_interview(self, project_id: str, user_id: str, answer: str, db=None) -> dict:
         """Process stakeholder answer and generate follow-up question."""
+        await self.sync_from_db(project_id, db)
         session = self._get_session(project_id)
         session["conversation_history"].append({"role": "user", "content": answer})
 
@@ -108,20 +222,29 @@ class Orchestrator:
         )
 
         result = await self.agents["stakeholder_interaction"].execute(agent_input)
-        session["conversation_history"].append(
-            {"role": "assistant", "content": result.data.get("question", "")}
-        )
+        next_q = result.data.get("question", "")
+        session["conversation_history"].append({"role": "assistant", "content": next_q})
+
         if result.data.get("topic") and result.data["topic"] not in session["topics_covered"]:
             session["topics_covered"].append(result.data["topic"])
 
         self._log_audit(session, "stakeholder_interaction", "interview_answer", result)
+        await self.persist_to_db(project_id, db)
         return result.data
 
     async def extract_requirements(self, project_id: str, user_id: str,
-                                    text: str, source_type: str = "conversation") -> dict:
-        """Extract structured requirements from text."""
+                                    text: str = "", source_type: str = "conversation", db=None) -> dict:
+        """Extract structured requirements from actual interview text or input."""
+        await self.sync_from_db(project_id, db)
         session = self._get_session(project_id)
         session["stage"] = "extraction"
+
+        # If no explicit text provided, compile the entire conversation history!
+        if not text and session.get("conversation_history"):
+            text = "\n".join(
+                f"{m.get('role', 'user')}: {m.get('content', '')}"
+                for m in session["conversation_history"]
+            )
 
         existing_ids = [r.get("requirement_id", "") for r in session["requirements"]]
 
@@ -135,23 +258,36 @@ class Orchestrator:
 
         result = await self.agents["requirement_extraction"].execute(agent_input)
         new_reqs = result.data.get("requirements", [])
-        session["requirements"].extend(new_reqs)
+
+        # Avoid duplicates by matching requirement statements
+        existing_statements = {r.get("statement", "").strip().lower() for r in session["requirements"]}
+        added = []
+        for r in new_reqs:
+            stmt = r.get("statement", "").strip().lower()
+            if stmt not in existing_statements:
+                session["requirements"].append(r)
+                existing_statements.add(stmt)
+                added.append(r)
+
+        result.data["requirements"] = session["requirements"]
+        result.data["count"] = len(session["requirements"])
 
         self._log_audit(session, "requirement_extraction", "extract", result)
+        await self.persist_to_db(project_id, db, stage="extraction")
         return result.data
 
-    async def run_analysis_pipeline(self, project_id: str, user_id: str) -> dict:
-        """Run the full analysis pipeline: clarification → classification → conflict →
+    async def run_analysis_pipeline(self, project_id: str, user_id: str, db=None) -> dict:
+        """Run the full 7-stage analysis pipeline: clarification → classification → conflict →
         compliance → security → risk → validation."""
+        await self.sync_from_db(project_id, db)
         session = self._get_session(project_id)
         requirements = session["requirements"]
         results = {}
 
         if not requirements:
-            return {"error": "No requirements to analyse. Extract requirements first."}
+            return {"error": "No requirements to analyse. Please complete the interview and extraction first."}
 
         # Stage 1: Clarification
-        session["stage"] = "clarification"
         clarification = await self.agents["clarification"].execute(
             AgentInput(project_id=project_id, user_id=user_id,
                       data={"requirements": requirements})
@@ -160,7 +296,6 @@ class Orchestrator:
         self._log_audit(session, "clarification", "analyse", clarification)
 
         # Stage 2: Classification
-        session["stage"] = "classification"
         classification = await self.agents["classification"].execute(
             AgentInput(project_id=project_id, user_id=user_id,
                       data={"requirements": requirements})
@@ -169,7 +304,6 @@ class Orchestrator:
         self._log_audit(session, "classification", "analyse", classification)
 
         # Stage 3: Conflict Detection
-        session["stage"] = "conflict_detection"
         conflict = await self.agents["conflict_detection"].execute(
             AgentInput(project_id=project_id, user_id=user_id,
                       data={"requirements": requirements})
@@ -178,7 +312,6 @@ class Orchestrator:
         self._log_audit(session, "conflict_detection", "analyse", conflict)
 
         # Stage 4: Compliance
-        session["stage"] = "compliance"
         compliance = await self.agents["compliance"].execute(
             AgentInput(project_id=project_id, user_id=user_id,
                       data={"requirements": requirements})
@@ -186,8 +319,7 @@ class Orchestrator:
         results["compliance"] = compliance.data
         self._log_audit(session, "compliance", "analyse", compliance)
 
-        # Stage 5: Security
-        session["stage"] = "security"
+        # Stage 5: Security & Privacy
         security = await self.agents["security_privacy"].execute(
             AgentInput(project_id=project_id, user_id=user_id,
                       data={"requirements": requirements})
@@ -195,8 +327,7 @@ class Orchestrator:
         results["security"] = security.data
         self._log_audit(session, "security_privacy", "analyse", security)
 
-        # Stage 6: Risk
-        session["stage"] = "risk_analysis"
+        # Stage 6: Risk Analysis
         risk = await self.agents["risk_analysis"].execute(
             AgentInput(project_id=project_id, user_id=user_id,
                       data={"requirements": requirements,
@@ -207,7 +338,6 @@ class Orchestrator:
         self._log_audit(session, "risk_analysis", "analyse", risk)
 
         # Stage 7: Validation
-        session["stage"] = "validation"
         validation = await self.agents["validation"].execute(
             AgentInput(project_id=project_id, user_id=user_id,
                       data={"requirements": requirements})
@@ -216,14 +346,21 @@ class Orchestrator:
         self._log_audit(session, "validation", "analyse", validation)
 
         session["analysis_results"] = results
-        session["stage"] = "analysed"
+        session["stage"] = "analysis"
+
+        self._log_audit(session, "orchestrator", "analysis_pipeline_complete",
+                        AgentOutput(agent_name="orchestrator", status="success",
+                                    data={"stages": list(results.keys())}, confidence=0.92))
+
+        await self.persist_to_db(project_id, db, stage="analysis")
         return results
 
     async def run_sdlc_analysis(self, project_id: str, user_id: str,
-                                 factors: dict | None = None) -> dict:
-        """Run SDLC selection analysis."""
+                                 factors: dict | None = None, db=None) -> dict:
+        """Run SDLC selection analysis with deterministic multi-criteria scoring."""
+        await self.sync_from_db(project_id, db)
         session = self._get_session(project_id)
-        session["stage"] = "sdlc_analysis"
+        session["stage"] = "sdlc"
 
         agent_input = AgentInput(
             project_id=project_id, user_id=user_id,
@@ -233,28 +370,58 @@ class Orchestrator:
         result = await self.agents["sdlc_selection"].execute(agent_input)
         session["analysis_results"]["sdlc"] = result.data
         self._log_audit(session, "sdlc_selection", "analyse", result)
+
+        await self.persist_to_db(project_id, db, stage="sdlc")
         return result.data
 
-    async def generate_artefact(self, project_id: str, user_id: str,
-                                 artefact_type: str, project_name: str = "") -> dict:
-        """Generate a documentation artefact."""
+    async def generate_srs(self, project_id: str, user_id: str,
+                           project_name: str = "", project_desc: str = "", db=None) -> dict:
+        """Generate comprehensive IEEE 29148 SRS document (PDF, DOCX, JSON)."""
+        await self.sync_from_db(project_id, db)
         session = self._get_session(project_id)
+        session["stage"] = "srs"
+
+        analysis = session.get("analysis_results", {})
 
         agent_input = AgentInput(
-            project_id=project_id, user_id=user_id,
-            data={"artefact_type": artefact_type,
-                  "requirements": session["requirements"],
-                  "project_name": project_name or project_id},
+            project_id=project_id,
+            user_id=user_id,
+            data={
+                "project_name": project_name or project_id,
+                "project_description": project_desc,
+                "requirements": session["requirements"],
+                "compliance_analysis": analysis.get("compliance", {}).get("compliance_analysis", []),
+                "security_analysis": analysis.get("security", {}).get("security_analysis", []),
+                "risk_assessment": analysis.get("risk_analysis", {}).get("risk_assessment", []),
+                "sdlc": analysis.get("sdlc", {}),
+            },
         )
 
         result = await self.agents["documentation"].execute(agent_input)
-        self._log_audit(session, "documentation", "generate", result)
+        session["srs_result"] = result.data
+        self._log_audit(session, "documentation", "generate_srs", result)
+
+        # Auto-create pending approval request for SRS baseline
+        await self.request_approval(
+            project_id=project_id,
+            user_id=user_id,
+            approval_type="requirement_baseline",
+            title=f"SRS Baseline Sign-Off: {project_name or project_id}",
+            description="Formal IEEE 29148 Software Requirements Specification baseline awaiting stakeholder sign-off.",
+            target_id=project_id,
+            target_data={"version": "1.0", "requirements_count": len(session["requirements"])},
+            db=db,
+        )
+
+        await self.persist_to_db(project_id, db, stage="srs")
         return result.data
 
     async def request_approval(self, project_id: str, user_id: str,
-                                approval_type: str, target_id: str = "",
-                                description: str = "", target_data: dict = None) -> dict:
-        """Create a human approval request."""
+                                approval_type: str, title: str = "",
+                                description: str = "", target_id: str = "",
+                                target_data: dict = None, db=None) -> dict:
+        """Create a human approval request in session and database."""
+        await self.sync_from_db(project_id, db)
         session = self._get_session(project_id)
 
         agent_input = AgentInput(
@@ -264,10 +431,48 @@ class Orchestrator:
         )
 
         result = await self.agents["human_approval"].execute(agent_input)
-        if result.data.get("approval_request"):
-            session["approval_requests"].append(result.data["approval_request"])
-        self._log_audit(session, "human_approval", "request", result)
-        return result.data
+        app_req = result.data.get("approval_request", {})
+        if title:
+            app_req["title"] = title
+
+        # Persist to database if db session provided
+        if db is not None:
+            try:
+                from models.approval import ApprovalRequest
+                from sqlalchemy import select
+
+                # Check if identical pending approval already exists
+                existing = await db.execute(
+                    select(ApprovalRequest).where(
+                        ApprovalRequest.project_id == project_id,
+                        ApprovalRequest.request_type == approval_type,
+                        ApprovalRequest.status == "pending"
+                    )
+                )
+                if not existing.scalar_one_or_none():
+                    db_approval = ApprovalRequest(
+                        id=str(uuid.uuid4()),
+                        project_id=project_id,
+                        request_type=approval_type,
+                        title=app_req.get("title", f"Approval: {approval_type}"),
+                        description=description,
+                        target_type="srs" if "baseline" in approval_type else "sdlc",
+                        target_id=target_id or project_id,
+                        target_data=target_data or {},
+                        required_roles=app_req.get("required_roles", ["project_manager"]),
+                        status="pending",
+                        priority="high",
+                    )
+                    db.add(db_approval)
+                    await db.flush()
+                    app_req["id"] = db_approval.id
+            except Exception as e:
+                logger.error(f"Error persisting approval to DB: {e}")
+
+        session["approval_requests"].append(app_req)
+        self._log_audit(session, "human_approval", "create_approval_request", result)
+        await self.persist_to_db(project_id, db)
+        return app_req
 
     def get_session_state(self, project_id: str) -> dict:
         """Get current session state for a project."""
@@ -279,17 +484,18 @@ class Orchestrator:
             "topics_covered": session["topics_covered"],
             "conversation_length": len(session["conversation_history"]),
             "has_analysis": bool(session["analysis_results"]),
+            "analysis_results": session["analysis_results"],
+            "has_srs": bool(session.get("srs_result")),
+            "srs_result": session.get("srs_result"),
             "pending_approvals": len([a for a in session["approval_requests"]
                                       if a.get("status") == "pending"]),
             "audit_count": len(session["audit_trail"]),
         }
 
     def get_requirements(self, project_id: str) -> list:
-        """Get all extracted requirements for a project."""
         return self._get_session(project_id)["requirements"]
 
     def get_audit_trail(self, project_id: str) -> list:
-        """Get audit trail for a project."""
         return self._get_session(project_id)["audit_trail"]
 
     def _log_audit(self, session: dict, agent_name: str, action: str, result: AgentOutput):
@@ -298,7 +504,7 @@ class Orchestrator:
             "action": action,
             "status": result.status,
             "confidence": result.confidence,
-            "issues": result.issues[:5],
+            "issues": result.issues[:5] if result.issues else [],
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "audit_entry": result.audit_entry,
         })

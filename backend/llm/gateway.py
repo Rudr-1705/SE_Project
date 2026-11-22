@@ -14,9 +14,19 @@ def get_llm_provider() -> BaseLLMProvider:
         if settings.LLM_PROVIDER == "openai":
             from llm.providers.openai_provider import OpenAIProvider
             _provider_instance = OpenAIProvider()
-        else:
+        elif settings.LLM_PROVIDER == "mock":
             _provider_instance = MockLLMProvider()
+        else:
+            # Default to Ollama
+            from llm.providers.ollama_provider import OllamaProvider
+            _provider_instance = OllamaProvider()
     return _provider_instance
+
+
+def reset_llm_provider():
+    """Reset the singleton instance (e.g. for testing or config change)."""
+    global _provider_instance
+    _provider_instance = None
 
 
 class LLMGateway:

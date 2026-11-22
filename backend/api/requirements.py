@@ -138,21 +138,40 @@ async def extract_requirements(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Extract requirements from text using the extraction agent."""
+    """Extract requirements from text using the extraction agent and persist deduplicated."""
     orchestrator = get_orchestrator()
     result = await orchestrator.extract_requirements(
-        project_id, user.id, text, source_type
+        project_id, user.id, text, source_type, db=db
     )
 
-    # Persist extracted requirements to DB
+    # Check existing requirements in DB to prevent duplicates
+    existing_res = await db.execute(
+        select(Requirement).where(Requirement.project_id == project_id, Requirement.is_current == True)
+    )
+    existing_db_reqs = existing_res.scalars().all()
+    existing_stmts = {r.statement.strip().lower() for r in existing_db_reqs}
+    existing_ids = {r.requirement_id for r in existing_db_reqs}
+
     extracted = result.get("requirements", [])
     persisted = []
     for r in extracted:
+        stmt = r.get("statement", "").strip()
+        if not stmt or stmt.lower() in existing_stmts:
+            continue
+
+        req_id = r.get("requirement_id")
+        if not req_id or req_id in existing_ids:
+            cat_prefix = "NFR-SEC" if "sec" in r.get("category", "").lower() else ("NFR-PERF" if "perf" in r.get("category", "").lower() else "FR-LOAN")
+            req_id = f"{cat_prefix}-{len(existing_ids) + 1:03d}"
+
+        existing_stmts.add(stmt.lower())
+        existing_ids.add(req_id)
+
         req = Requirement(
             id=str(uuid.uuid4()),
-            requirement_id=r.get("requirement_id", f"FR-LOAN-{len(persisted)+1:03d}"),
+            requirement_id=req_id,
             project_id=project_id,
-            statement=r.get("statement", ""),
+            statement=stmt,
             category=r.get("category", "functional"),
             subcategory=r.get("subcategory", ""),
             business_justification=r.get("business_justification", ""),
@@ -160,7 +179,7 @@ async def extract_requirements(
             acceptance_criteria=r.get("acceptance_criteria", []),
             applicable_regulations=r.get("applicable_regulations", []),
             risks=r.get("risks", []),
-            confidence=r.get("confidence", 0.0),
+            confidence=float(r.get("confidence", 0.85)),
             status="extracted",
             source=user.full_name,
             source_type=source_type,
@@ -173,11 +192,20 @@ async def extract_requirements(
         ))
         persisted.append(req.requirement_id)
 
-    db.add(AuditLog(event_type="requirement", action="extract",
-                    user_id=user.id, project_id=project_id,
-                    details={"count": len(persisted), "source_type": source_type}))
+    if persisted:
+        db.add(AuditLog(event_type="requirement", action="extract",
+                        user_id=user.id, project_id=project_id,
+                        details={"count": len(persisted), "source_type": source_type}))
     await db.flush()
 
+    # Re-fetch all current requirements for response
+    all_res = await db.execute(
+        select(Requirement).where(Requirement.project_id == project_id, Requirement.is_current == True)
+        .order_by(Requirement.requirement_id.asc())
+    )
+    all_reqs = all_res.scalars().all()
+    result["requirements"] = [RequirementResponse.model_validate(r).model_dump() for r in all_reqs]
+    result["count"] = len(all_reqs)
     result["persisted_ids"] = persisted
     return result
 
@@ -186,8 +214,23 @@ async def extract_requirements(
 async def analyse_requirements(
     project_id: str,
     user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """Run the full analysis pipeline on project requirements."""
     orchestrator = get_orchestrator()
-    result = await orchestrator.run_analysis_pipeline(project_id, user.id)
+    result = await orchestrator.run_analysis_pipeline(project_id, user.id, db=db)
     return result
+
+
+@router.get("/analysis-results")
+async def get_analysis_results(
+    project_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get stored analysis pipeline results."""
+    orchestrator = get_orchestrator()
+    await orchestrator.sync_from_db(project_id, db)
+    session = orchestrator.get_session_state(project_id)
+    raw = orchestrator._get_session(project_id)
+    return raw.get("analysis_results", {})

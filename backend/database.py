@@ -32,7 +32,14 @@ async def get_db() -> AsyncSession:
             raise
 
 
+from sqlalchemy import text
+
 async def init_db():
-    """Create all tables (called once at startup)."""
+    """Create all tables and apply non-destructive schema migrations."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # Non-destructive migration for newly added columns
+        try:
+            await conn.execute(text("ALTER TABLE projects ADD COLUMN current_stage VARCHAR(50) DEFAULT 'interview'"))
+        except Exception:
+            pass  # Column already exists

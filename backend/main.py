@@ -56,6 +56,7 @@ from api.requirements import router as requirements_router
 from api.documents import router as documents_router
 from api.approvals import router as approvals_router
 from api.sdlc import router as sdlc_router
+from api.srs import router as srs_router
 
 app.include_router(auth_router)
 app.include_router(projects_router)
@@ -63,6 +64,7 @@ app.include_router(requirements_router)
 app.include_router(documents_router)
 app.include_router(approvals_router)
 app.include_router(sdlc_router)
+app.include_router(srs_router)
 
 
 # ── Evaluation endpoint ───────────────────────────────

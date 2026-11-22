@@ -71,6 +71,17 @@ async def get_me(user: User = Depends(get_current_user)):
     return UserResponse.model_validate(user)
 
 
+@router.post("/logout")
+async def logout(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Logout current user and log audit event."""
+    db.add(AuditLog(event_type="auth", action="logout",
+                    user_id=user.id, target_type="user", target_id=user.id))
+    return {"message": "Logged out successfully"}
+
+
 @router.get("/users", response_model=list[UserResponse])
 async def list_users(
     user: User = Depends(get_current_user),

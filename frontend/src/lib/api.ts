@@ -1,5 +1,5 @@
 /**
- * API client for the AIFRE backend.
+ * Typed API client for the AIFRE backend.
  */
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
@@ -11,7 +11,7 @@ type FetchOptions = {
   isFormData?: boolean;
 };
 
-async function apiFetch<T = any>(path: string, options: FetchOptions = {}): Promise<T> {
+export async function apiFetch<T = any>(path: string, options: FetchOptions = {}): Promise<T> {
   const { method = 'GET', body, token, isFormData = false } = options;
 
   const headers: Record<string, string> = {};
@@ -41,6 +41,9 @@ export const authAPI = {
 
   getMe: (token: string) =>
     apiFetch('/auth/me', { token }),
+
+  logout: (token: string) =>
+    apiFetch('/auth/logout', { method: 'POST', token }).catch(() => {}),
 };
 
 // ── Projects ──
@@ -53,6 +56,21 @@ export const projectsAPI = {
 
   get: (token: string, id: string) =>
     apiFetch(`/projects/${id}`, { token }),
+
+  updateStage: (token: string, id: string, stage: string) =>
+    apiFetch(`/projects/${id}/stage`, { method: 'PUT', body: { stage }, token }),
+};
+
+// ── Interview ──
+export const interviewAPI = {
+  start: (token: string, projectId: string, role = 'business_analyst') =>
+    apiFetch(`/projects/${projectId}/interview/start?stakeholder_role=${role}`, { method: 'POST', token }),
+
+  answer: (token: string, projectId: string, answer: string) =>
+    apiFetch(`/projects/${projectId}/interview/answer?answer=${encodeURIComponent(answer)}`, { method: 'POST', token }),
+
+  getHistory: (token: string, projectId: string) =>
+    apiFetch(`/projects/${projectId}/interview/history`, { token }),
 };
 
 // ── Requirements ──
@@ -60,30 +78,14 @@ export const requirementsAPI = {
   list: (token: string, projectId: string) =>
     apiFetch(`/projects/${projectId}/requirements`, { token }),
 
-  create: (token: string, projectId: string, data: any) =>
-    apiFetch(`/projects/${projectId}/requirements`, { method: 'POST', body: data, token }),
-
-  extract: (token: string, projectId: string, text: string, sourceType = 'conversation') =>
-    apiFetch(`/projects/${projectId}/requirements/extract?text=${encodeURIComponent(text)}&source_type=${sourceType}`, { method: 'POST', token }),
+  extract: (token: string, projectId: string, text = '') =>
+    apiFetch(`/projects/${projectId}/requirements/extract${text ? `?text=${encodeURIComponent(text)}` : ''}`, { method: 'POST', token }),
 
   analyse: (token: string, projectId: string) =>
     apiFetch(`/projects/${projectId}/requirements/analyse`, { method: 'POST', token }),
-};
 
-// ── Documents ──
-export const documentsAPI = {
-  list: (token: string, projectId: string) =>
-    apiFetch(`/projects/${projectId}/documents`, { token }),
-
-  upload: (token: string, projectId: string, file: File, docType = 'general') => {
-    const form = new FormData();
-    form.append('file', file);
-    form.append('doc_type', docType);
-    form.append('title', file.name);
-    return apiFetch(`/projects/${projectId}/documents`, {
-      method: 'POST', body: form, token, isFormData: true,
-    });
-  },
+  getAnalysisResults: (token: string, projectId: string) =>
+    apiFetch(`/projects/${projectId}/requirements/analysis-results`, { token }),
 };
 
 // ── SDLC ──
@@ -95,19 +97,19 @@ export const sdlcAPI = {
     apiFetch(`/projects/${projectId}/sdlc/result`, { token }),
 };
 
-// ── Artefacts ──
-export const artefactsAPI = {
-  generate: (token: string, projectId: string, type: string, name = '') =>
-    apiFetch(`/projects/${projectId}/artefacts/generate?artefact_type=${type}&project_name=${encodeURIComponent(name)}`, { method: 'POST', token }),
-};
+// ── SRS Document ──
+export const srsAPI = {
+  generate: (token: string, projectId: string) =>
+    apiFetch(`/projects/${projectId}/srs/generate`, { method: 'POST', token }),
 
-// ── Interview ──
-export const interviewAPI = {
-  start: (token: string, projectId: string, role = 'business_analyst') =>
-    apiFetch(`/projects/${projectId}/interview/start?stakeholder_role=${role}`, { method: 'POST', token }),
+  preview: (token: string, projectId: string) =>
+    apiFetch(`/projects/${projectId}/srs/preview`, { token }),
 
-  answer: (token: string, projectId: string, answer: string) =>
-    apiFetch(`/projects/${projectId}/interview/answer?answer=${encodeURIComponent(answer)}`, { method: 'POST', token }),
+  getPdfDownloadUrl: (projectId: string) =>
+    `${API_BASE}/projects/${projectId}/srs/download/pdf`,
+
+  getDocxDownloadUrl: (projectId: string) =>
+    `${API_BASE}/projects/${projectId}/srs/download/docx`,
 };
 
 // ── Approvals ──
@@ -115,27 +117,19 @@ export const approvalsAPI = {
   list: (token: string, projectId: string, status = '') =>
     apiFetch(`/projects/${projectId}/approvals${status ? `?status=${status}` : ''}`, { token }),
 
-  create: (token: string, projectId: string, data: any) =>
-    apiFetch(`/projects/${projectId}/approvals`, { method: 'POST', body: data, token }),
-
-  action: (token: string, projectId: string, approvalId: string, data: any) =>
-    apiFetch(`/projects/${projectId}/approvals/${approvalId}/action`, { method: 'POST', body: data, token }),
+  action: (token: string, projectId: string, approvalId: string, action: string, comments = '') =>
+    apiFetch(`/projects/${projectId}/approvals/${approvalId}/action`, {
+      method: 'POST',
+      body: { action, comments },
+      token,
+    }),
 };
 
-// ── Session/Audit ──
+// ── Audit & Session ──
 export const sessionAPI = {
   getState: (token: string, projectId: string) =>
     apiFetch(`/projects/${projectId}/session`, { token }),
 
   getAuditTrail: (token: string, projectId: string) =>
     apiFetch(`/projects/${projectId}/audit-trail`, { token }),
-};
-
-// ── System ──
-export const systemAPI = {
-  health: () => apiFetch('/health'),
-
-  runEvaluation: () => apiFetch('/evaluation/run', { method: 'POST' }),
-
-  getTestCases: () => apiFetch('/evaluation/test-cases'),
 };

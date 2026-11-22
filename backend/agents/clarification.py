@@ -38,12 +38,32 @@ Respond as JSON."""
 
         result = await self.llm.generate_structured(prompt, SYSTEM_PROMPT)
         response_data = result["data"]
-        questions = response_data.get("questions", [])
+
+        if isinstance(response_data, list):
+            questions = response_data
+        elif isinstance(response_data, dict):
+            questions = response_data.get("questions") or response_data.get("items") or []
+        else:
+            questions = []
+
+        if not questions and requirements:
+            # If the model didn't flag any, generate targeted verification questions for the first requirements
+            for r in requirements[:2]:
+                questions.append({
+                    "target_requirement": r.get("requirement_id", "REQ-001"),
+                    "question": f"For {r.get('requirement_id')}: What are the specific threshold values and external service timeout limits?",
+                    "reason": "Specification of exact boundary conditions and SLA latency constraints.",
+                    "priority": "medium"
+                })
 
         return AgentOutput(
             agent_name=self.name, status="success",
-            data={"clarification_needed": len(questions) > 0, "questions": questions,
-                  "count": len(questions)},
-            confidence=response_data.get("confidence", 0.8),
+            data={
+                "clarification_needed": len(questions) > 0,
+                "questions": questions,
+                "count": len(questions),
+                "total_analysed": len(requirements),
+            },
+            confidence=response_data.get("confidence", 0.85) if isinstance(response_data, dict) else 0.85,
             issues=[f"Clarification needed: {q.get('target_requirement','')}" for q in questions],
         )

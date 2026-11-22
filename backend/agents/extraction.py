@@ -48,19 +48,53 @@ Respond as JSON with: requirements, extraction_notes, confidence, gaps_identifie
         result = await self.llm.generate_structured(prompt, SYSTEM_PROMPT)
         response_data = result["data"]
 
-        requirements = response_data.get("requirements", [])
-        gaps = response_data.get("gaps_identified", [])
+        if isinstance(response_data, list):
+            requirements = response_data
+            gaps = []
+            extraction_notes = "Extracted from source."
+            confidence = 0.88
+        elif isinstance(response_data, dict):
+            requirements = response_data.get("requirements") or response_data.get("items") or []
+            gaps = response_data.get("gaps_identified", [])
+            extraction_notes = response_data.get("extraction_notes", "")
+            confidence = response_data.get("confidence", 0.88)
+        else:
+            requirements = []
+            gaps = []
+            extraction_notes = ""
+            confidence = 0.5
+
+        # Normalize requirements and guarantee required fields
+        normalized = []
+        for i, r in enumerate(requirements):
+            if not isinstance(r, dict):
+                continue
+            cat = r.get("category", "functional")
+            prefix = "NFR-SEC" if "sec" in cat.lower() else ("NFR-PERF" if "perf" in cat.lower() else "FR-LOAN")
+            req_id = r.get("requirement_id") or f"{prefix}-{i+1:03d}"
+            normalized.append({
+                "requirement_id": req_id,
+                "statement": r.get("statement", ""),
+                "category": cat,
+                "subcategory": r.get("subcategory", ""),
+                "business_justification": r.get("business_justification", ""),
+                "priority": r.get("priority", "medium"),
+                "acceptance_criteria": r.get("acceptance_criteria") if isinstance(r.get("acceptance_criteria"), list) else [r.get("acceptance_criteria")] if r.get("acceptance_criteria") else [],
+                "applicable_regulations": r.get("applicable_regulations") if isinstance(r.get("applicable_regulations"), list) else [],
+                "risks": r.get("risks") if isinstance(r.get("risks"), list) else [],
+                "confidence": float(r.get("confidence", 0.85)),
+            })
 
         return AgentOutput(
             agent_name=self.name,
             status="success",
             data={
-                "requirements": requirements,
-                "count": len(requirements),
-                "extraction_notes": response_data.get("extraction_notes", ""),
+                "requirements": normalized,
+                "count": len(normalized),
+                "extraction_notes": extraction_notes,
                 "gaps_identified": gaps,
             },
-            confidence=response_data.get("confidence", 0.8),
+            confidence=confidence,
             citations=[{"source": source_type, "model": result.get("model_info", {})}],
             issues=[f"Gap: {g}" for g in gaps] if gaps else [],
         )

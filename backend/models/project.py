@@ -17,6 +17,8 @@ class Project(Base):
     #            fraud_detection, regulatory_reporting, etc.
     status = Column(String(50), default="active")
     # Statuses: active, in_review, approved, archived
+    current_stage = Column(String(50), default="interview")
+    # Stages: interview, extraction, analysis, sdlc, srs, approval, completed
     owner_id = Column(String(36), ForeignKey("users.id"), nullable=False)
     jurisdiction = Column(String(100), default="")
     industry_segment = Column(String(100), default="banking")

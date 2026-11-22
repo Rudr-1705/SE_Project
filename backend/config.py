@@ -34,9 +34,13 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
 
     # LLM
-    LLM_PROVIDER: str = "mock"  # "mock" | "openai"
+    LLM_PROVIDER: str = "ollama"  # "ollama" | "openai" | "mock"
     OPENAI_API_KEY: str = ""
     OPENAI_MODEL: str = "gpt-4o"
+    OLLAMA_BASE_URL: str = "http://localhost:11434"
+    OLLAMA_MODEL: str = "qwen3:8b"
+    OLLAMA_CONTEXT_WINDOW: int = 8192
+    OLLAMA_TIMEOUT: int = 120
     LLM_MAX_TOKENS: int = 4096
     LLM_TEMPERATURE: float = 0.2
 

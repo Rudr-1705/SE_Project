@@ -42,7 +42,7 @@ class ApprovalRequest(Base):
     # Relationships
     project = relationship("Project", back_populates="approval_requests")
     actions = relationship("ApprovalAction", back_populates="approval_request",
-                           cascade="all, delete-orphan")
+                           cascade="all, delete-orphan", lazy="selectin")
 
 
 class ApprovalAction(Base):

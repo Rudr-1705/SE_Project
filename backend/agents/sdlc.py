@@ -48,14 +48,21 @@ Respond with JSON: rationale (string), trade_offs (array), implementation_notes 
 
 
 def score_sdlc_models(factors: dict) -> dict:
-    """Deterministic multi-criteria scoring of SDLC models."""
+    """Deterministic multi-criteria scoring of SDLC models with normalized weights."""
     scores = {}
     for model_name, model_config in SDLC_MODELS.items():
-        score = 0.5  # base score
+        pos_weight_sum = sum(w for w in model_config["weights"].values() if w > 0)
+        weighted_sum = 0.0
+        penalty = 0.0
         for factor, weight in model_config["weights"].items():
-            factor_value = factors.get(factor, 0.5)
-            score += weight * factor_value
-        scores[model_name] = max(0.0, min(1.0, score))
+            factor_val = float(factors.get(factor, 0.5))
+            if weight > 0:
+                weighted_sum += weight * factor_val
+            else:
+                penalty += abs(weight) * factor_val
+        raw = (weighted_sum / pos_weight_sum) if pos_weight_sum > 0 else 0.5
+        score = max(0.15, min(0.95, raw - (penalty * 0.4)))
+        scores[model_name] = round(score, 3)
     return scores
 
 
@@ -122,21 +129,22 @@ Respond as JSON."""
         """Derive SDLC factors from requirements characteristics."""
         n = max(len(requirements), 1)
         sec_count = sum(1 for r in requirements if r.get("category") in ("security", "privacy"))
-        reg_count = sum(1 for r in requirements if r.get("applicable_regulations"))
-        critical_count = sum(1 for r in requirements if r.get("priority") == "critical")
+        reg_count = sum(1 for r in requirements if r.get("applicable_regulations") or "regulatory" in r.get("category", ""))
+        critical_count = sum(1 for r in requirements if r.get("priority") in ("critical", "high"))
+        ambiguous_count = sum(1 for r in requirements if r.get("is_ambiguous"))
 
         return {
-            "requirement_stability": 0.6,
-            "regulatory_criticality": min(1.0, reg_count / n + 0.3),
-            "security_risk": min(1.0, sec_count / n + 0.3),
-            "complexity": min(1.0, n / 50 + 0.3),
-            "system_size": min(1.0, n / 100 + 0.3),
-            "legacy_dependence": 0.4,
-            "change_frequency": 0.5,
-            "continuous_delivery": 0.6,
-            "stakeholder_availability": 0.7,
-            "testing_requirements": min(1.0, critical_count / n + 0.5),
-            "budget_schedule_pressure": 0.5,
-            "formal_verification": min(1.0, reg_count / n + 0.4),
-            "failure_consequences": min(1.0, critical_count / n + 0.5),
+            "requirement_stability": round(max(0.2, min(0.9, 1.0 - (ambiguous_count / n) * 0.5)), 2),
+            "regulatory_criticality": round(max(0.3, min(1.0, reg_count / n * 0.7 + 0.3)), 2),
+            "security_risk": round(max(0.3, min(1.0, sec_count / n * 0.7 + 0.3)), 2),
+            "complexity": round(max(0.3, min(0.95, (n / 30.0) * 0.5 + 0.35)), 2),
+            "system_size": round(max(0.2, min(0.9, (n / 50.0) * 0.5 + 0.2)), 2),
+            "legacy_dependence": 0.45,
+            "change_frequency": 0.55,
+            "continuous_delivery": 0.65,
+            "stakeholder_availability": 0.75,
+            "testing_requirements": round(max(0.4, min(1.0, critical_count / n * 0.5 + 0.5)), 2),
+            "budget_schedule_pressure": 0.50,
+            "formal_verification": round(max(0.3, min(1.0, reg_count / n * 0.5 + 0.4)), 2),
+            "failure_consequences": round(max(0.4, min(1.0, critical_count / n * 0.5 + 0.5)), 2),
         }

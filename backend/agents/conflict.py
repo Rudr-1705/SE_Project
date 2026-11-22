@@ -36,15 +36,31 @@ Respond as JSON."""
 
         result = await self.llm.generate_structured(prompt, SYSTEM_PROMPT)
         response_data = result["data"]
-        conflicts = response_data.get("conflicts", [])
-        duplicates = response_data.get("duplicates", [])
+
+        if isinstance(response_data, dict):
+            conflicts = response_data.get("conflicts", [])
+            duplicates = response_data.get("duplicates", [])
+            confidence = response_data.get("confidence", 0.88)
+        elif isinstance(response_data, list):
+            conflicts = response_data
+            duplicates = []
+            confidence = 0.88
+        else:
+            conflicts = []
+            duplicates = []
+            confidence = 0.85
 
         return AgentOutput(
             agent_name=self.name, status="success",
-            data={"conflicts": conflicts, "duplicates": duplicates,
-                  "conflict_count": len(conflicts), "duplicate_count": len(duplicates)},
-            confidence=response_data.get("confidence", 0.82),
-            issues=[f"Conflict: {c.get('description','')}" for c in conflicts],
+            data={
+                "conflicts": conflicts,
+                "duplicates": duplicates,
+                "conflict_count": len(conflicts),
+                "duplicate_count": len(duplicates),
+                "total_analysed": len(requirements)
+            },
+            confidence=confidence,
+            issues=[f"Conflict: {c.get('description','')}" for c in conflicts if isinstance(c, dict)],
         )
 
     def should_escalate(self, output: AgentOutput) -> bool:

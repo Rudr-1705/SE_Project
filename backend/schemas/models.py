@@ -156,6 +156,7 @@ class ProjectResponse(BaseModel):
     description: str
     use_case: str
     status: str
+    current_stage: str = "interview"
     owner_id: str
     jurisdiction: str
     industry_segment: str

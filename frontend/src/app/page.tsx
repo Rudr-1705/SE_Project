@@ -1,618 +1,1654 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  authAPI,
+  projectsAPI,
+  interviewAPI,
+  requirementsAPI,
+  sdlcAPI,
+  srsAPI,
+  approvalsAPI,
+  sessionAPI,
+} from '@/lib/api';
 
 // ── Types ─────────────────────────────────────────────
-type User = { id: string; email: string; full_name: string; role: string };
-type Project = { id: string; name: string; description: string; use_case: string; status: string; created_at: string };
-type Requirement = { id: string; requirement_id: string; statement: string; category: string; priority: string; status: string; confidence: number; is_ambiguous: boolean; is_conflicting: boolean; acceptance_criteria: any[]; applicable_regulations: any[]; risks: any[]; evidence: any[] };
-type Message = { role: string; content: string };
-
-// ── API helpers ───────────────────────────────────────
-async function api(path: string, opts: { method?: string; body?: any; token?: string; isForm?: boolean } = {}) {
-  const headers: Record<string, string> = {};
-  if (opts.token) headers['Authorization'] = `Bearer ${opts.token}`;
-  if (!opts.isForm) headers['Content-Type'] = 'application/json';
-  const config: RequestInit = { method: opts.method || 'GET', headers };
-  if (opts.body) config.body = opts.isForm ? opts.body : JSON.stringify(opts.body);
-  const res = await fetch(`${API}${path}`, config);
-  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || `Error ${res.status}`); }
-  return res.json();
-}
-
-// ── Icons (inline SVG) ────────────────────────────────
-const Icons = {
-  dashboard: <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>,
-  chat: <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>,
-  doc: <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
-  req: <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>,
-  shield: <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>,
-  check: <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
-  chart: <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" /></svg>,
-  export: <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
-  audit: <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+type User = {
+  id: string;
+  email: string;
+  full_name: string;
+  role: string;
+  organization?: string;
+  department?: string;
 };
 
-const priorityColor: Record<string, string> = { critical: 'badge-red', high: 'badge-yellow', medium: 'badge-blue', low: 'badge-green' };
-const statusColor: Record<string, string> = { raw: 'badge-purple', extracted: 'badge-blue', analysed: 'badge-yellow', approved: 'badge-green', rejected: 'badge-red', pending_approval: 'badge-yellow' };
+type Project = {
+  id: string;
+  name: string;
+  description: string;
+  use_case: string;
+  status: string;
+  current_stage?: string;
+  created_at: string;
+  updated_at?: string;
+};
 
-// ── Main App ──────────────────────────────────────────
-export default function Home() {
-  const [page, setPage] = useState('dashboard');
-  const [token, setToken] = useState('');
+type Requirement = {
+  id?: string;
+  requirement_id: string;
+  statement: string;
+  category: string;
+  subcategory?: string;
+  priority: string;
+  status?: string;
+  confidence?: number;
+  acceptance_criteria?: string[];
+  applicable_regulations?: any[];
+  risks?: any[];
+  business_justification?: string;
+};
+
+type Message = {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp?: string;
+};
+
+type ApprovalRequest = {
+  id: string;
+  title: string;
+  description: string;
+  request_type: string;
+  status: string;
+  required_roles?: string[];
+  priority?: string;
+  created_at?: string;
+};
+
+const STAGES = [
+  { id: 'interview', label: 'Interview', step: 1 },
+  { id: 'extraction', label: 'Requirements', step: 2 },
+  { id: 'analysis', label: 'Analysis', step: 3 },
+  { id: 'sdlc', label: 'SDLC', step: 4 },
+  { id: 'srs', label: 'SRS Document', step: 5 },
+  { id: 'approval', label: 'Approval', step: 6 },
+  { id: 'completed', label: 'Completion', step: 7 },
+];
+
+export default function App() {
+  // ── Authentication State ──
+  const [token, setToken] = useState<string>('');
   const [user, setUser] = useState<User | null>(null);
-  const [project, setProject] = useState<Project | null>(null);
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authName, setAuthName] = useState('');
+  const [authRole, setAuthRole] = useState('business_analyst');
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState('');
+
+  // ── Project Management State ──
   const [projects, setProjects] = useState<Project[]>([]);
-  const [requirements, setRequirements] = useState<Requirement[]>([]);
+  const [activeProject, setActiveProject] = useState<Project | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [newProjectName, setNewProjectName] = useState('');
+  const [newProjectDesc, setNewProjectDesc] = useState('');
+  const [newProjectUseCase, setNewProjectUseCase] = useState('loan_processing');
+  const [newProjectJurisdiction, setNewProjectJurisdiction] = useState('US / Federal Banking');
+
+  // ── Wizard / Stage State ──
+  const [currentStage, setCurrentStage] = useState<string>('interview');
+
+  // ── Interview State ──
   const [messages, setMessages] = useState<Message[]>([]);
-  const [analysis, setAnalysis] = useState<any>(null);
-  const [sdlc, setSdlc] = useState<any>(null);
-  const [artefact, setArtefact] = useState<any>(null);
-  const [auditTrail, setAuditTrail] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  // Auth state
-  const [email, setEmail] = useState('admin@aifre.com');
-  const [password, setPassword] = useState('admin1234');
-  const [fullName, setFullName] = useState('Admin User');
-
-  // Interview state
   const [interviewInput, setInterviewInput] = useState('');
-  const [interviewProgress, setInterviewProgress] = useState(0);
+  const [interviewTopics, setInterviewTopics] = useState<string[]>([]);
+  const [interviewLoading, setInterviewLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+  // ── Requirements State ──
+  const [requirements, setRequirements] = useState<Requirement[]>([]);
+  const [reqFilter, setReqFilter] = useState('');
+  const [reqCategoryFilter, setReqCategoryFilter] = useState('all');
+  const [extractLoading, setExtractLoading] = useState(false);
 
-  // ── Auth ──
-  const handleLogin = async () => {
-    setLoading(true); setError('');
-    try {
-      const data = await api('/auth/login', { method: 'POST', body: { email, password } });
-      setToken(data.access_token); setUser(data.user);
-      const projs = await api('/projects', { token: data.access_token });
-      setProjects(projs);
-    } catch (e: any) {
-      // Try register
-      try {
-        const data = await api('/auth/register', { method: 'POST', body: { email, password, full_name: fullName, role: 'admin' } });
-        setToken(data.access_token); setUser(data.user);
-      } catch (e2: any) { setError(e2.message); }
+  // ── Analysis State ──
+  const [analysisResults, setAnalysisResults] = useState<any>(null);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [activeAnalysisTab, setActiveAnalysisTab] = useState('compliance');
+
+  // ── SDLC State ──
+  const [sdlcResult, setSdlcResult] = useState<any>(null);
+  const [sdlcLoading, setSdlcLoading] = useState(false);
+
+  // ── SRS State ──
+  const [srsData, setSrsData] = useState<any>(null);
+  const [srsLoading, setSrsLoading] = useState(false);
+
+  // ── Approval State ──
+  const [approvals, setApprovals] = useState<ApprovalRequest[]>([]);
+  const [approvalComment, setApprovalComment] = useState('');
+  const [approvalLoading, setApprovalLoading] = useState(false);
+
+  // ── Audit State ──
+  const [auditTrail, setAuditTrail] = useState<any[]>([]);
+
+  // ── Notifications ──
+  const [notification, setNotification] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), 4500);
+  };
+
+  // ── Initial Session Restoration ──
+  useEffect(() => {
+    const savedToken = localStorage.getItem('aifre_jwt_token');
+    if (savedToken) {
+      setToken(savedToken);
+      authAPI.getMe(savedToken)
+        .then(userData => {
+          setUser(userData);
+          loadUserProjects(savedToken);
+        })
+        .catch(() => {
+          localStorage.removeItem('aifre_jwt_token');
+          setToken('');
+          setUser(null);
+        });
     }
-    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  // ── Auth Handlers ──
+  const handleAuthSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthLoading(true);
+    setAuthError('');
+
+    try {
+      let data;
+      if (authMode === 'login') {
+        data = await authAPI.login({ email: authEmail, password: authPassword });
+      } else {
+        data = await authAPI.register({
+          email: authEmail,
+          password: authPassword,
+          full_name: authName,
+          role: authRole,
+        });
+      }
+
+      setToken(data.access_token);
+      setUser(data.user);
+      localStorage.setItem('aifre_jwt_token', data.access_token);
+      showToast(`Welcome back, ${data.user.full_name}!`, 'success');
+      loadUserProjects(data.access_token);
+    } catch (err: any) {
+      setAuthError(err.message || 'Authentication failed. Please check your credentials.');
+    } finally {
+      setAuthLoading(false);
+    }
   };
 
-  // ── Project ──
-  const createProject = async () => {
-    setLoading(true);
+  const handleLogout = async () => {
+    if (token) {
+      await authAPI.logout(token);
+    }
+    localStorage.removeItem('aifre_jwt_token');
+    setToken('');
+    setUser(null);
+    setActiveProject(null);
+    setProjects([]);
+    setMessages([]);
+    setRequirements([]);
+    setAnalysisResults(null);
+    setSdlcResult(null);
+    setSrsData(null);
+    setApprovals([]);
+    setShowProfileModal(false);
+    showToast('You have been logged out.', 'info');
+  };
+
+  const loadUserProjects = async (authToken: string) => {
     try {
-      const proj = await api('/projects', { method: 'POST', token, body: { name: 'Loan Processing System', description: 'Digital loan origination and processing platform with KYC/AML compliance', use_case: 'loan_processing' } });
-      setProject(proj);
+      const projs = await projectsAPI.list(authToken);
+      setProjects(projs);
+      if (projs.length === 0) {
+        setShowCreateModal(true);
+      } else if (!activeProject) {
+        // Automatically open the most recent project
+        selectProject(projs[0], authToken);
+      }
+    } catch (err: any) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  // ── Project Lifecycle Handlers ──
+  const handleCreateProject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newProjectName.trim()) return;
+
+    try {
+      const proj = await projectsAPI.create(token, {
+        name: newProjectName,
+        description: newProjectDesc,
+        use_case: newProjectUseCase,
+      });
+
       setProjects([proj, ...projects]);
-      setPage('interview');
-    } catch (e: any) { setError(e.message); }
-    setLoading(false);
+      setShowCreateModal(false);
+      setNewProjectName('');
+      setNewProjectDesc('');
+      showToast(`Project '${proj.name}' initialized.`, 'success');
+      selectProject(proj, token);
+    } catch (err: any) {
+      showToast(err.message, 'error');
+    }
   };
 
-  // ── Interview ──
-  const startInterview = async () => {
-    if (!project) return;
-    setLoading(true);
+  const selectProject = async (proj: Project, authToken: string) => {
+    setActiveProject(proj);
+    setShowHistoryModal(false);
+
     try {
-      const data = await api(`/projects/${project.id}/interview/start?stakeholder_role=business_analyst`, { method: 'POST', token });
-      setMessages([{ role: 'assistant', content: data.question }]);
-      setInterviewProgress(data.progress * 100);
-    } catch (e: any) { setError(e.message); }
-    setLoading(false);
+      // Restore persistent session from backend
+      const session = await sessionAPI.getState(authToken, proj.id);
+      const stage = proj.current_stage || session.stage || 'interview';
+      setCurrentStage(stage);
+
+      // Load interview history
+      const history = await interviewAPI.getHistory(authToken, proj.id);
+      setMessages(history.messages || []);
+      setInterviewTopics(history.topics_covered || []);
+
+      // If interview is empty, trigger initial welcome question
+      if (!history.messages || history.messages.length === 0) {
+        setInterviewLoading(true);
+        const initData = await interviewAPI.start(authToken, proj.id);
+        setMessages([{ role: 'assistant', content: initData.question }]);
+        if (initData.topic) setInterviewTopics([initData.topic]);
+        setInterviewLoading(false);
+      }
+
+      // Load existing requirements
+      const reqList = await requirementsAPI.list(authToken, proj.id);
+      setRequirements(reqList || []);
+
+      // Load analysis results if available
+      if (session.has_analysis) {
+        const analysis = await requirementsAPI.getAnalysisResults(authToken, proj.id);
+        setAnalysisResults(analysis);
+      }
+
+      // Load SDLC if available
+      if (session.analysis_results?.sdlc) {
+        setSdlcResult(session.analysis_results.sdlc);
+      }
+
+      // Load approvals
+      const apps = await approvalsAPI.list(authToken, proj.id);
+      setApprovals(apps || []);
+    } catch (err: any) {
+      console.error('Error loading project state:', err);
+    }
   };
 
-  const sendAnswer = async () => {
-    if (!project || !interviewInput.trim()) return;
-    const userMsg = interviewInput;
-    setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
+  const navigateToStage = (stageId: string) => {
+    setCurrentStage(stageId);
+    if (activeProject && token) {
+      projectsAPI.updateStage(token, activeProject.id, stageId).catch(() => {});
+    }
+  };
+
+  // ── Stage 1: Interview Handlers ──
+  const handleSendAnswer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!interviewInput.trim() || !activeProject) return;
+
+    const userText = interviewInput.trim();
+    setMessages(prev => [...prev, { role: 'user', content: userText }]);
     setInterviewInput('');
-    setLoading(true);
+    setInterviewLoading(true);
+
     try {
-      const data = await api(`/projects/${project.id}/interview/answer?answer=${encodeURIComponent(userMsg)}`, { method: 'POST', token });
+      const data = await interviewAPI.answer(token, activeProject.id, userText);
       setMessages(prev => [...prev, { role: 'assistant', content: data.question }]);
-      setInterviewProgress((data.progress || 0) * 100);
-    } catch (e: any) { setError(e.message); }
-    setLoading(false);
+      if (data.topic && !interviewTopics.includes(data.topic)) {
+        setInterviewTopics(prev => [...prev, data.topic]);
+      }
+    } catch (err: any) {
+      showToast(err.message, 'error');
+    } finally {
+      setInterviewLoading(false);
+    }
   };
 
-  // ── Extraction ──
-  const extractRequirements = async () => {
-    if (!project) return;
-    setLoading(true);
+  const handleFinishInterviewAndExtract = async () => {
+    if (!activeProject) return;
+    setExtractLoading(true);
+
     try {
-      const conversationText = messages.map(m => `${m.role}: ${m.content}`).join('\n');
-      const data = await api(`/projects/${project.id}/requirements/extract?text=${encodeURIComponent(conversationText)}&source_type=conversation`, { method: 'POST', token });
-      setRequirements(data.requirements || []);
-      setPage('requirements');
-    } catch (e: any) { setError(e.message); }
-    setLoading(false);
+      const res = await requirementsAPI.extract(token, activeProject.id);
+      setRequirements(res.requirements || []);
+      showToast(`Successfully synthesized ${res.count || res.requirements?.length || 0} requirements!`, 'success');
+      navigateToStage('extraction');
+    } catch (err: any) {
+      showToast(err.message, 'error');
+    } finally {
+      setExtractLoading(false);
+    }
   };
 
-  // ── Analysis ──
-  const runAnalysis = async () => {
-    if (!project) return;
-    setLoading(true);
+  // ── Stage 2: Extraction Handlers ──
+  const handleProceedToAnalysis = async () => {
+    if (!activeProject) return;
+    setAnalysisLoading(true);
+    navigateToStage('analysis');
+
     try {
-      const data = await api(`/projects/${project.id}/requirements/analyse`, { method: 'POST', token });
-      setAnalysis(data);
-      setPage('analysis');
-    } catch (e: any) { setError(e.message); }
-    setLoading(false);
+      const results = await requirementsAPI.analyse(token, activeProject.id);
+      setAnalysisResults(results);
+      showToast('7-stage requirements analysis complete.', 'success');
+    } catch (err: any) {
+      showToast(err.message, 'error');
+    } finally {
+      setAnalysisLoading(false);
+    }
   };
 
-  // ── SDLC ──
-  const runSdlc = async () => {
-    if (!project) return;
-    setLoading(true);
+  // ── Stage 3: Analysis Handlers ──
+  const handleProceedToSDLC = async () => {
+    if (!activeProject) return;
+    setSdlcLoading(true);
+    navigateToStage('sdlc');
+
     try {
-      const data = await api(`/projects/${project.id}/sdlc/analyse`, { method: 'POST', token });
-      setSdlc(data);
-      setPage('sdlc');
-    } catch (e: any) { setError(e.message); }
-    setLoading(false);
+      const result = await sdlcAPI.analyse(token, activeProject.id);
+      setSdlcResult(result);
+      showToast(`Recommended SDLC: ${result.display_name}`, 'success');
+    } catch (err: any) {
+      showToast(err.message, 'error');
+    } finally {
+      setSdlcLoading(false);
+    }
   };
 
-  // ── Artefacts ──
-  const generateArtefact = async (type: string) => {
-    if (!project) return;
-    setLoading(true);
+  // ── Stage 4: SDLC Handlers ──
+  const handleProceedToSRS = async () => {
+    if (!activeProject) return;
+    setSrsLoading(true);
+    navigateToStage('srs');
+
     try {
-      const data = await api(`/projects/${project.id}/artefacts/generate?artefact_type=${type}&project_name=${encodeURIComponent(project.name)}`, { method: 'POST', token });
-      setArtefact(data);
-      setPage('artefacts');
-    } catch (e: any) { setError(e.message); }
-    setLoading(false);
+      const res = await srsAPI.generate(token, activeProject.id);
+      setSrsData(res.srs_data || res);
+      showToast('IEEE 29148 SRS document generated.', 'success');
+    } catch (err: any) {
+      showToast(err.message, 'error');
+    } finally {
+      setSrsLoading(false);
+    }
   };
 
-  // ── Audit ──
-  const loadAudit = async () => {
-    if (!project) return;
+  // ── Stage 5: SRS Handlers ──
+  const handleProceedToApproval = async () => {
+    if (!activeProject) return;
+    setApprovalLoading(true);
+    navigateToStage('approval');
+
     try {
-      const data = await api(`/projects/${project.id}/audit-trail`, { token });
-      setAuditTrail(data);
-    } catch (e: any) { setError(e.message); }
+      const apps = await approvalsAPI.list(token, activeProject.id);
+      setApprovals(apps || []);
+    } catch (err: any) {
+      showToast(err.message, 'error');
+    } finally {
+      setApprovalLoading(false);
+    }
   };
 
-  // ── Login screen ──
-  if (!token) {
+  // ── Stage 6: Approval Handlers ──
+  const handleActionApproval = async (approvalId: string, action: 'approve' | 'reject' | 'modify') => {
+    if (!activeProject) return;
+    setApprovalLoading(true);
+
+    try {
+      const res = await approvalsAPI.action(token, activeProject.id, approvalId, action, approvalComment);
+      showToast(`Approval status updated: ${res.approval_status}`, 'success');
+      setApprovalComment('');
+
+      // Refresh approvals list
+      const apps = await approvalsAPI.list(token, activeProject.id);
+      setApprovals(apps || []);
+
+      if (res.approval_status === 'approved') {
+        navigateToStage('completed');
+      }
+    } catch (err: any) {
+      showToast(err.message, 'error');
+    } finally {
+      setApprovalLoading(false);
+    }
+  };
+
+  const handleLoadAuditTrail = async () => {
+    if (!activeProject) return;
+    try {
+      const trail = await sessionAPI.getAuditTrail(token, activeProject.id);
+      setAuditTrail(trail || []);
+    } catch (err: any) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  // ──────────────────────────────────────────────────────
+  // 1. AUTHENTICATION VIEW (If not logged in)
+  // ──────────────────────────────────────────────────────
+  if (!token || !user) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: 'linear-gradient(135deg, #0a0f1c 0%, #1a1040 50%, #0a0f1c 100%)' }}>
-        <div className="glass-card animate-fade-in" style={{ maxWidth: 420, width: '100%', textAlign: 'center' }}>
-          <div style={{ marginBottom: 32 }}>
-            <div style={{ fontSize: 40, marginBottom: 8 }}>🏦</div>
-            <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 4, background: 'linear-gradient(135deg, #60a5fa, #a78bfa)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>AIFRE</h1>
-            <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>AI Financial Requirements Engineering</p>
+      <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+        <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-blue-600 text-white font-bold text-xl shadow-sm mb-4">
+            AI
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <input className="input-field" placeholder="Full Name" value={fullName} onChange={e => setFullName(e.target.value)} />
-            <input className="input-field" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} />
-            <input className="input-field" type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} />
-            <button className="btn-primary" onClick={handleLogin} disabled={loading} style={{ marginTop: 8 }}>
-              {loading ? '⏳ Authenticating...' : '🔐 Login / Register'}
-            </button>
+          <h2 className="text-2xl font-bold tracking-tight text-slate-900">
+            AIFRE Platform
+          </h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Agentic AI Financial Requirements Engineering
+          </p>
+        </div>
+
+        <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+          <div className="bg-white py-8 px-6 shadow-sm border border-slate-200 rounded-xl sm:px-10">
+            {/* Tab switch */}
+            <div className="flex border-b border-slate-200 mb-6">
+              <button
+                type="button"
+                onClick={() => setAuthMode('login')}
+                className={`flex-1 pb-3 text-sm font-medium border-b-2 text-center transition-colors ${
+                  authMode === 'login'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                Sign In
+              </button>
+              <button
+                type="button"
+                onClick={() => setAuthMode('register')}
+                className={`flex-1 pb-3 text-sm font-medium border-b-2 text-center transition-colors ${
+                  authMode === 'register'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                Create Account
+              </button>
+            </div>
+
+            {authError && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                {authError}
+              </div>
+            )}
+
+            <form onSubmit={handleAuthSubmit} className="space-y-4">
+              {authMode === 'register' && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                    Full Name
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={authName}
+                    onChange={e => setAuthName(e.target.value)}
+                    placeholder="e.g. Eleanor Vance"
+                    className="input-clean"
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                  Corporate Email
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={authEmail}
+                  onChange={e => setAuthEmail(e.target.value)}
+                  placeholder="analyst@institution.com"
+                  className="input-clean"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                  Password
+                </label>
+                <input
+                  type="password"
+                  required
+                  value={authPassword}
+                  onChange={e => setAuthPassword(e.target.value)}
+                  placeholder="••••••••••••"
+                  className="input-clean"
+                />
+              </div>
+
+              {authMode === 'register' && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                    Organizational Role
+                  </label>
+                  <select
+                    value={authRole}
+                    onChange={e => setAuthRole(e.target.value)}
+                    className="input-clean"
+                  >
+                    <option value="business_analyst">Business Analyst</option>
+                    <option value="project_manager">Project Manager</option>
+                    <option value="architect">Software Architect</option>
+                    <option value="security_officer">Security Officer</option>
+                    <option value="compliance_officer">Compliance Officer</option>
+                    <option value="stakeholder">Business Stakeholder</option>
+                    <option value="auditor">Auditor</option>
+                  </select>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={authLoading}
+                className="w-full btn-primary py-2.5 mt-2"
+              >
+                {authLoading ? 'Verifying Credentials...' : authMode === 'login' ? 'Sign In' : 'Register Account'}
+              </button>
+            </form>
           </div>
-          {error && <p style={{ color: 'var(--danger)', marginTop: 12, fontSize: 13 }}>{error}</p>}
         </div>
       </div>
     );
   }
 
-  // ── Sidebar ──
-  const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: Icons.dashboard },
-    { id: 'interview', label: 'Interview', icon: Icons.chat },
-    { id: 'requirements', label: 'Requirements', icon: Icons.req },
-    { id: 'analysis', label: 'Analysis', icon: Icons.shield },
-    { id: 'sdlc', label: 'SDLC Analysis', icon: Icons.chart },
-    { id: 'artefacts', label: 'Artefacts', icon: Icons.export },
-    { id: 'approvals', label: 'Approvals', icon: Icons.check },
-    { id: 'audit', label: 'Audit Trail', icon: Icons.audit },
-  ];
-
+  // ──────────────────────────────────────────────────────
+  // 2. MAIN APPLICATION (Clean Sequential SaaS Interface)
+  // ──────────────────────────────────────────────────────
   return (
-    <div style={{ display: 'flex' }}>
-      {/* Sidebar */}
-      <div className="sidebar">
-        <div style={{ marginBottom: 32 }}>
-          <div style={{ fontSize: 24, fontWeight: 700, background: 'linear-gradient(135deg, #60a5fa, #a78bfa)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>🏦 AIFRE</div>
-          <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Financial RE Platform</p>
+    <div className="min-h-screen bg-slate-50 flex flex-col text-slate-900">
+      {/* Toast Notification */}
+      {notification && (
+        <div
+          className={`fixed bottom-5 right-5 z-50 py-2.5 px-4 rounded-lg shadow-lg text-sm font-medium border flex items-center gap-2 animate-fade-in ${
+            notification.type === 'error'
+              ? 'bg-red-50 text-red-800 border-red-200'
+              : notification.type === 'info'
+              ? 'bg-blue-50 text-blue-800 border-blue-200'
+              : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+          }`}
+        >
+          <span>{notification.message}</span>
         </div>
-        <nav style={{ flex: 1 }}>
-          {navItems.map(item => (
-            <a key={item.id} className={`sidebar-link ${page === item.id ? 'active' : ''}`} onClick={() => { setPage(item.id); if (item.id === 'audit') loadAudit(); }} style={{ cursor: 'pointer' }}>
-              {item.icon} {item.label}
-            </a>
-          ))}
-        </nav>
-        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, marginTop: 16 }}>
-          <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{user?.full_name}</div>
-          <div className="badge badge-blue" style={{ marginTop: 4 }}>{user?.role}</div>
-        </div>
-      </div>
+      )}
 
-      {/* Main content */}
-      <div className="main-content">
-        {error && <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid var(--danger)', borderRadius: 10, padding: '10px 16px', marginBottom: 16, color: '#f87171', fontSize: 13 }}>⚠️ {error} <button onClick={() => setError('')} style={{ float: 'right', background: 'none', border: 'none', color: '#f87171', cursor: 'pointer' }}>✕</button></div>}
+      {/* Top Persistent Header */}
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-blue-600 text-white font-bold flex items-center justify-center text-sm shadow-sm">
+              AI
+            </div>
+            <div>
+              <span className="font-bold text-slate-900 text-base tracking-tight">AIFRE</span>
+              <span className="hidden sm:inline-block ml-2 text-xs text-slate-400 font-medium border-l border-slate-200 pl-2">
+                Requirements Engineering
+              </span>
+            </div>
 
-        {/* Dashboard */}
-        {page === 'dashboard' && (
-          <div className="animate-fade-in">
-            <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8 }}>Dashboard</h1>
-            <p style={{ color: 'var(--text-muted)', marginBottom: 32 }}>Agentic AI Financial Requirements Engineering</p>
-
-            {!project ? (
-              <div className="glass-card" style={{ textAlign: 'center', maxWidth: 500, margin: '60px auto' }}>
-                <div style={{ fontSize: 48, marginBottom: 16 }}>🚀</div>
-                <h2 style={{ fontSize: 20, fontWeight: 600, marginBottom: 8 }}>Create Your First Project</h2>
-                <p style={{ color: 'var(--text-muted)', marginBottom: 24, fontSize: 14 }}>Start with a Loan Processing System to demonstrate the full requirements engineering pipeline.</p>
-                <button className="btn-primary" onClick={createProject} disabled={loading}>{loading ? '⏳ Creating...' : '+ Create Loan Processing Project'}</button>
+            {activeProject && (
+              <div className="hidden md:flex items-center gap-2 ml-4 px-2.5 py-1 bg-slate-100 rounded-md text-xs font-medium text-slate-700">
+                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                <span>{activeProject.name}</span>
+                <span className="text-slate-400">•</span>
+                <span className="text-slate-500 capitalize">{activeProject.use_case.replace('_', ' ')}</span>
               </div>
-            ) : (
-              <div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 32 }}>
-                  {[
-                    { label: 'Requirements', value: requirements.length, color: '#60a5fa' },
-                    { label: 'Analysed', value: analysis ? '✓' : '—', color: '#34d399' },
-                    { label: 'SDLC', value: sdlc?.display_name || '—', color: '#a78bfa' },
-                    { label: 'Artefacts', value: artefact ? '1+' : '—', color: '#fbbf24' },
-                  ].map((stat, i) => (
-                    <div key={i} className="glass-card" style={{ textAlign: 'center' }}>
-                      <div style={{ fontSize: 28, fontWeight: 700, color: stat.color }}>{stat.value}</div>
-                      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>{stat.label}</div>
+            )}
+          </div>
+
+          {/* Right Header Navigation Controls */}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="text-xs font-medium px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 flex items-center gap-1.5 transition-colors"
+            >
+              <span>+ New Project</span>
+            </button>
+
+            <button
+              onClick={() => setShowHistoryModal(true)}
+              className="text-xs font-medium px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 flex items-center gap-1.5 transition-colors"
+            >
+              <span>Projects ({projects.length})</span>
+            </button>
+
+            {/* Profile Dropdown Trigger */}
+            <div className="relative">
+              <button
+                onClick={() => setShowProfileModal(!showProfileModal)}
+                className="flex items-center gap-2 pl-2 text-xs font-medium text-slate-700 hover:text-slate-900 focus:outline-none"
+              >
+                <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center text-xs border border-blue-200">
+                  {user.full_name.charAt(0)}
+                </div>
+                <span className="hidden sm:inline">{user.full_name}</span>
+              </button>
+
+              {/* Account Dropdown Menu */}
+              {showProfileModal && (
+                <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-slate-200 py-1.5 z-50 text-xs">
+                  <div className="px-4 py-2 border-b border-slate-100">
+                    <p className="font-semibold text-slate-900">{user.full_name}</p>
+                    <p className="text-slate-500 truncate">{user.email}</p>
+                    <span className="inline-block mt-1 badge badge-blue capitalize">{user.role.replace('_', ' ')}</span>
+                  </div>
+                  <button
+                    onClick={() => { setShowHistoryModal(true); setShowProfileModal(false); }}
+                    className="w-full text-left px-4 py-2 text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                  >
+                    <span>Previous Projects</span>
+                  </button>
+                  <button
+                    onClick={() => { handleLoadAuditTrail(); setShowProfileModal(false); }}
+                    className="w-full text-left px-4 py-2 text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                  >
+                    <span>Audit Log</span>
+                  </button>
+                  <div className="border-t border-slate-100 my-1"></div>
+                  <button
+                    onClick={handleLogout}
+                    className="w-full text-left px-4 py-2 text-red-600 hover:bg-red-50 flex items-center gap-2 font-medium"
+                  >
+                    <span>Sign Out</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Sequential Progress Bar / Stepper */}
+        {activeProject && (
+          <div className="border-t border-slate-100 bg-slate-50/50">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 overflow-x-auto">
+              <nav className="flex items-center justify-between min-w-[700px]">
+                {STAGES.map((s, idx) => {
+                  const isActive = currentStage === s.id;
+                  const currentIdx = STAGES.findIndex(item => item.id === currentStage);
+                  const isCompleted = idx < currentIdx;
+
+                  return (
+                    <button
+                      key={s.id}
+                      onClick={() => navigateToStage(s.id)}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                        isActive
+                          ? 'bg-blue-600 text-white shadow-sm'
+                          : isCompleted
+                          ? 'text-slate-700 hover:bg-slate-200/60'
+                          : 'text-slate-400 hover:text-slate-600'
+                      }`}
+                    >
+                      <span
+                        className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                          isActive
+                            ? 'bg-white text-blue-600'
+                            : isCompleted
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : 'bg-slate-200 text-slate-500'
+                        }`}
+                      >
+                        {isCompleted ? '✓' : s.step}
+                      </span>
+                      <span>{s.label}</span>
+                      {idx < STAGES.length - 1 && (
+                        <span className="text-slate-300 ml-2">›</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </nav>
+            </div>
+          </div>
+        )}
+      </header>
+
+      {/* Main Content Area */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {!activeProject ? (
+          <div className="max-w-md mx-auto text-center py-16">
+            <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center text-2xl mx-auto mb-4 border border-blue-100">
+              📁
+            </div>
+            <h3 className="text-lg font-bold text-slate-900">No Active Project</h3>
+            <p className="mt-1 text-sm text-slate-500 mb-6">
+              Create a project to initiate the AI-guided requirements engineering workflow.
+            </p>
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="btn-primary"
+            >
+              + Create New Project
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-6 animate-fade-in">
+            {/* ─────────────────────────────────────────────
+                STAGE 1: STAKEHOLDER INTERVIEW
+            ───────────────────────────────────────────── */}
+            {currentStage === 'interview' && (
+              <div className="saas-card overflow-hidden">
+                <div className="p-6 border-b border-slate-200 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">Adaptive Stakeholder Interview</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      The AI agent conducts an interactive interview to discover functional workflows, regulatory boundaries, and security constraints.
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleFinishInterviewAndExtract}
+                    disabled={extractLoading || messages.length < 2}
+                    className="btn-primary text-xs"
+                  >
+                    {extractLoading ? 'Extracting Requirements...' : 'Complete & Extract Requirements →'}
+                  </button>
+                </div>
+
+                {/* Topics Progress Checklist */}
+                <div className="px-6 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center gap-2 overflow-x-auto text-xs">
+                  <span className="text-slate-500 font-semibold uppercase text-[10px] tracking-wider">Topics Explored:</span>
+                  {interviewTopics.length === 0 ? (
+                    <span className="text-slate-400 italic">Conversation in progress...</span>
+                  ) : (
+                    interviewTopics.map((topic, i) => (
+                      <span key={i} className="badge badge-blue capitalize">
+                        ✓ {topic.replace('_', ' ')}
+                      </span>
+                    ))
+                  )}
+                </div>
+
+                {/* Chat History Messages */}
+                <div className="p-6 h-[460px] overflow-y-auto space-y-4 bg-slate-50/30">
+                  {messages.map((msg, idx) => (
+                    <div
+                      key={idx}
+                      className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div
+                        className={`max-w-2xl rounded-xl p-4 text-sm leading-relaxed ${
+                          msg.role === 'user'
+                            ? 'bg-blue-600 text-white shadow-sm'
+                            : 'bg-white text-slate-800 border border-slate-200 shadow-sm'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 mb-1 opacity-75 text-[11px] font-semibold">
+                          <span>{msg.role === 'user' ? 'Stakeholder (You)' : 'AIFRE Requirements Specialist'}</span>
+                        </div>
+                        <p className="whitespace-pre-wrap">{msg.content}</p>
+                      </div>
                     </div>
                   ))}
-                </div>
-
-                <div className="glass-card" style={{ marginBottom: 16 }}>
-                  <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>📋 {project.name}</h3>
-                  <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 12 }}>{project.description}</p>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <span className="badge badge-blue">{project.use_case}</span>
-                    <span className="badge badge-green">{project.status}</span>
-                  </div>
-                </div>
-
-                <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Workflow Steps</h3>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-                  {[
-                    { step: '1', label: 'Stakeholder Interview', action: () => { setPage('interview'); startInterview(); }, done: messages.length > 0 },
-                    { step: '2', label: 'Extract Requirements', action: extractRequirements, done: requirements.length > 0 },
-                    { step: '3', label: 'Run Analysis Pipeline', action: runAnalysis, done: !!analysis },
-                    { step: '4', label: 'SDLC Analysis', action: runSdlc, done: !!sdlc },
-                    { step: '5', label: 'Generate SRS', action: () => generateArtefact('srs'), done: !!artefact },
-                    { step: '6', label: 'View Audit Trail', action: () => { setPage('audit'); loadAudit(); }, done: auditTrail.length > 0 },
-                  ].map((s, i) => (
-                    <div key={i} className="glass-card" style={{ cursor: 'pointer', opacity: loading ? 0.6 : 1 }} onClick={() => !loading && s.action()}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div style={{ width: 32, height: 32, borderRadius: '50%', background: s.done ? 'var(--success)' : 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 600 }}>{s.done ? '✓' : s.step}</div>
-                        <span style={{ fontSize: 14, fontWeight: 500 }}>{s.label}</span>
+                  {interviewLoading && (
+                    <div className="flex justify-start">
+                      <div className="bg-white border border-slate-200 rounded-xl p-4 text-xs text-slate-500 flex items-center gap-2">
+                        <span className="animate-pulse">●</span>
+                        <span className="animate-pulse delay-100">●</span>
+                        <span className="animate-pulse delay-200">●</span>
+                        <span className="ml-1">Formulating follow-up question...</span>
                       </div>
                     </div>
-                  ))}
+                  )}
+                  <div ref={chatEndRef} />
                 </div>
-              </div>
-            )}
-          </div>
-        )}
 
-        {/* Interview */}
-        {page === 'interview' && (
-          <div className="animate-fade-in">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-              <div>
-                <h1 style={{ fontSize: 24, fontWeight: 700 }}>💬 Stakeholder Interview</h1>
-                <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Adaptive requirements gathering</p>
-              </div>
-              {messages.length === 0 && <button className="btn-primary" onClick={startInterview} disabled={loading}>{loading ? '⏳' : '▶ Start Interview'}</button>}
-              {messages.length > 2 && <button className="btn-secondary" onClick={extractRequirements} disabled={loading}>📥 Extract Requirements</button>}
-            </div>
-
-            {interviewProgress > 0 && (
-              <div style={{ marginBottom: 16 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>
-                  <span>Interview Progress</span><span>{Math.round(interviewProgress)}%</span>
-                </div>
-                <div className="progress-bar"><div className="progress-bar-fill" style={{ width: `${interviewProgress}%` }} /></div>
+                {/* Response Input Box */}
+                <form onSubmit={handleSendAnswer} className="p-4 border-t border-slate-200 bg-white flex gap-2">
+                  <input
+                    type="text"
+                    value={interviewInput}
+                    onChange={e => setInterviewInput(e.target.value)}
+                    placeholder="Provide details about requirements, constraints, KYC, transaction limits, or security..."
+                    disabled={interviewLoading}
+                    className="input-clean flex-1"
+                  />
+                  <button
+                    type="submit"
+                    disabled={interviewLoading || !interviewInput.trim()}
+                    className="btn-primary"
+                  >
+                    Send Response
+                  </button>
+                </form>
               </div>
             )}
 
-            <div className="glass-card" style={{ minHeight: 400, display: 'flex', flexDirection: 'column' }}>
-              <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, paddingBottom: 16 }}>
-                {messages.length === 0 && <div style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: 80 }}>Click "Start Interview" to begin adaptive requirements gathering</div>}
-                {messages.map((msg, i) => (
-                  <div key={i} className={`chat-bubble ${msg.role === 'user' ? 'chat-bubble-user' : 'chat-bubble-ai'}`}>
-                    {msg.content}
+            {/* ─────────────────────────────────────────────
+                STAGE 2: REQUIREMENT EXTRACTION
+            ───────────────────────────────────────────── */}
+            {currentStage === 'extraction' && (
+              <div className="space-y-4">
+                <div className="saas-card p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">Extracted Requirements Repository</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Synthesized from stakeholder answers with unique identifiers, acceptance criteria, and priority rankings.
+                    </p>
                   </div>
-                ))}
-                {loading && <div className="chat-bubble chat-bubble-ai animate-pulse">🤔 Thinking...</div>}
-                <div ref={chatEndRef} />
-              </div>
-              <div style={{ display: 'flex', gap: 8, borderTop: '1px solid var(--border)', paddingTop: 16 }}>
-                <input className="input-field" placeholder="Type your answer..." value={interviewInput} onChange={e => setInterviewInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendAnswer()} />
-                <button className="btn-primary" onClick={sendAnswer} disabled={loading || !interviewInput.trim()}>Send</button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Requirements */}
-        {page === 'requirements' && (
-          <div className="animate-fade-in">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-              <div>
-                <h1 style={{ fontSize: 24, fontWeight: 700 }}>📋 Requirements ({requirements.length})</h1>
-                <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Extracted and structured requirements</p>
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button className="btn-secondary" onClick={runAnalysis} disabled={loading}>🔍 Run Analysis</button>
-                <button className="btn-primary" onClick={extractRequirements} disabled={loading}>📥 Re-extract</button>
-              </div>
-            </div>
-
-            {requirements.length === 0 ? (
-              <div className="glass-card" style={{ textAlign: 'center', padding: 60 }}>
-                <p style={{ color: 'var(--text-muted)' }}>No requirements yet. Start an interview or upload a document.</p>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {requirements.map((req, i) => (
-                  <div key={i} className="glass-card">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                        <span style={{ fontWeight: 700, color: 'var(--accent)', fontSize: 13 }}>{req.requirement_id || `REQ-${i+1}`}</span>
-                        <span className={`badge ${priorityColor[req.priority] || 'badge-blue'}`}>{req.priority}</span>
-                        <span className={`badge ${statusColor[req.status] || 'badge-blue'}`}>{req.status}</span>
-                      </div>
-                      <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Confidence: {((req.confidence || 0) * 100).toFixed(0)}%</span>
-                    </div>
-                    <p style={{ fontSize: 14, lineHeight: 1.6, marginBottom: 8 }}>{req.statement}</p>
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 12 }}>
-                      <span className="badge badge-purple">{req.category}</span>
-                      {req.is_ambiguous && <span className="badge badge-yellow">⚠ Ambiguous</span>}
-                      {req.is_conflicting && <span className="badge badge-red">⚡ Conflict</span>}
-                      {(req.applicable_regulations || []).map((r: any, j: number) => (
-                        <span key={j} className="badge badge-blue">{typeof r === 'string' ? r : r.name || r}</span>
-                      ))}
-                    </div>
-                    {req.acceptance_criteria && req.acceptance_criteria.length > 0 && (
-                      <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(42,53,80,0.5)' }}>
-                        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>ACCEPTANCE CRITERIA</div>
-                        <ul style={{ fontSize: 13, color: 'var(--text-secondary)', paddingLeft: 16 }}>
-                          {req.acceptance_criteria.map((ac: any, j: number) => <li key={j}>{ac}</li>)}
-                        </ul>
-                      </div>
-                    )}
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => navigateToStage('interview')}
+                      className="btn-secondary text-xs"
+                    >
+                      ← Back to Interview
+                    </button>
+                    <button
+                      onClick={handleProceedToAnalysis}
+                      disabled={requirements.length === 0 || analysisLoading}
+                      className="btn-primary text-xs"
+                    >
+                      {analysisLoading ? 'Running Analysis...' : 'Proceed to Analysis →'}
+                    </button>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+                </div>
 
-        {/* Analysis */}
-        {page === 'analysis' && (
-          <div className="animate-fade-in">
-            <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 24 }}>🔍 Analysis Results</h1>
-            {!analysis ? (
-              <div className="glass-card" style={{ textAlign: 'center', padding: 60 }}>
-                <p style={{ color: 'var(--text-muted)' }}>No analysis run yet.</p>
-                <button className="btn-primary" onClick={runAnalysis} disabled={loading} style={{ marginTop: 16 }}>Run Analysis Pipeline</button>
-              </div>
-            ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                {Object.entries(analysis).map(([key, value]: [string, any]) => (
-                  <div key={key} className="glass-card">
-                    <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12, textTransform: 'capitalize' }}>
-                      {key === 'compliance' ? '⚖️' : key === 'security' ? '🔒' : key === 'risk_analysis' ? '⚠️' : key === 'validation' ? '✅' : key === 'classification' ? '🏷️' : key === 'conflict_detection' ? '⚡' : key === 'clarification' ? '❓' : '📊'} {key.replace(/_/g, ' ')}
-                    </h3>
-                    {value && typeof value === 'object' && (
-                      <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-                        {value.disclaimer && <p style={{ color: 'var(--warning)', fontSize: 12, marginBottom: 8 }}>⚠ {value.disclaimer}</p>}
-                        {value.count !== undefined && <p>Items: {value.count}</p>}
-                        {value.total_analysed !== undefined && <p>Analysed: {value.total_analysed}</p>}
-                        {value.issue_count !== undefined && <p>Issues: {value.issue_count}</p>}
-                        {value.conflict_count !== undefined && <p>Conflicts: {value.conflict_count}</p>}
-                        {value.duplicate_count !== undefined && <p>Duplicates: {value.duplicate_count}</p>}
-                        {value.overall_risk_level && <p>Risk Level: <span className={`badge ${value.overall_risk_level === 'high' ? 'badge-red' : 'badge-yellow'}`}>{value.overall_risk_level}</span></p>}
-                        {value.validation_results && (
-                          <div style={{ marginTop: 8 }}>
-                            {Object.entries(value.validation_results).map(([k, v]: [string, any]) => (
-                              <div key={k} style={{ marginBottom: 6 }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 2 }}>
-                                  <span>{k.replace(/_/g, ' ')}</span><span>{typeof v === 'number' ? `${(v * 100).toFixed(0)}%` : v}</span>
-                                </div>
-                                {typeof v === 'number' && <div className="score-meter"><div className="score-meter-fill" style={{ width: `${v * 100}%`, background: v > 0.8 ? 'var(--success)' : v > 0.6 ? 'var(--warning)' : 'var(--danger)' }} /></div>}
-                              </div>
-                            ))}
+                {/* Filter and Search Bar */}
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <input
+                    type="text"
+                    placeholder="Search requirements by ID or keyword..."
+                    value={reqFilter}
+                    onChange={e => setReqFilter(e.target.value)}
+                    className="input-clean flex-1"
+                  />
+                  <select
+                    value={reqCategoryFilter}
+                    onChange={e => setReqCategoryFilter(e.target.value)}
+                    className="input-clean sm:w-48"
+                  >
+                    <option value="all">All Categories</option>
+                    <option value="functional">Functional</option>
+                    <option value="security">Security</option>
+                    <option value="performance">Performance</option>
+                    <option value="audit_reporting">Audit / Reporting</option>
+                  </select>
+                </div>
+
+                {/* Requirements Cards */}
+                <div className="grid grid-cols-1 gap-3">
+                  {requirements
+                    .filter(r => {
+                      const matchesText = !reqFilter ||
+                        r.statement.toLowerCase().includes(reqFilter.toLowerCase()) ||
+                        r.requirement_id.toLowerCase().includes(reqFilter.toLowerCase());
+                      const matchesCat = reqCategoryFilter === 'all' || r.category.toLowerCase().includes(reqCategoryFilter);
+                      return matchesText && matchesCat;
+                    })
+                    .map((req, idx) => (
+                      <div key={idx} className="saas-card p-5 hover:border-slate-300">
+                        <div className="flex items-start justify-between gap-4 mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded">
+                              {req.requirement_id}
+                            </span>
+                            <span className="badge badge-gray capitalize">{req.category}</span>
+                            <span
+                              className={`badge ${
+                                req.priority === 'critical'
+                                  ? 'badge-red'
+                                  : req.priority === 'high'
+                                  ? 'badge-yellow'
+                                  : 'badge-blue'
+                              } uppercase`}
+                            >
+                              {req.priority}
+                            </span>
+                          </div>
+                          {req.confidence && (
+                            <span className="text-[11px] text-slate-400 font-medium">
+                              Confidence: {Math.round(req.confidence * 100)}%
+                            </span>
+                          )}
+                        </div>
+
+                        <p className="text-sm font-medium text-slate-900 leading-relaxed">
+                          {req.statement}
+                        </p>
+
+                        {req.business_justification && (
+                          <p className="text-xs text-slate-500 mt-2">
+                            <span className="font-semibold text-slate-600">Rationale:</span> {req.business_justification}
+                          </p>
+                        )}
+
+                        {req.acceptance_criteria && req.acceptance_criteria.length > 0 && (
+                          <div className="mt-3 pt-3 border-t border-slate-100">
+                            <span className="text-[11px] font-semibold text-slate-600 block mb-1">
+                              Acceptance Criteria:
+                            </span>
+                            <ul className="text-xs text-slate-600 space-y-1 list-disc pl-4">
+                              {req.acceptance_criteria.map((ac, acIdx) => (
+                                <li key={acIdx}>{ac}</li>
+                              ))}
+                            </ul>
                           </div>
                         )}
                       </div>
-                    )}
-                  </div>
-                ))}
+                    ))}
+                </div>
               </div>
             )}
-          </div>
-        )}
 
-        {/* SDLC */}
-        {page === 'sdlc' && (
-          <div className="animate-fade-in">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-              <div>
-                <h1 style={{ fontSize: 24, fontWeight: 700 }}>📊 SDLC Analysis</h1>
-                <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Methodology recommendation with factors and rationale</p>
-              </div>
-              <button className="btn-primary" onClick={runSdlc} disabled={loading}>{loading ? '⏳' : '🔄 Run Analysis'}</button>
-            </div>
-
-            {!sdlc ? (
-              <div className="glass-card" style={{ textAlign: 'center', padding: 60 }}>
-                <p style={{ color: 'var(--text-muted)' }}>Run SDLC analysis to get a methodology recommendation.</p>
-              </div>
-            ) : (
-              <div>
-                <div className="glass-card" style={{ marginBottom: 16, textAlign: 'center' }}>
-                  <div style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 8 }}>RECOMMENDED MODEL</div>
-                  <div style={{ fontSize: 32, fontWeight: 700, color: 'var(--accent)', marginBottom: 8 }}>{sdlc.display_name || sdlc.recommended_model}</div>
-                  <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>Confidence: {((sdlc.recommended_score || sdlc.confidence || 0) * 100).toFixed(0)}%</div>
-                  <div className="badge badge-yellow" style={{ marginTop: 8 }}>⚠ Requires Approval</div>
+            {/* ─────────────────────────────────────────────
+                STAGE 3: MULTI-AGENT ANALYSIS
+            ───────────────────────────────────────────── */}
+            {currentStage === 'analysis' && (
+              <div className="space-y-4">
+                <div className="saas-card p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">Multi-Agent Requirements Analysis</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Comprehensive evaluations performed across 7 specialized dimensions: compliance, security, risks, and quality validation.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => navigateToStage('extraction')}
+                      className="btn-secondary text-xs"
+                    >
+                      ← Back to Requirements
+                    </button>
+                    <button
+                      onClick={handleProceedToSDLC}
+                      disabled={sdlcLoading}
+                      className="btn-primary text-xs"
+                    >
+                      {sdlcLoading ? 'Evaluating SDLC...' : 'Proceed to SDLC Recommendation →'}
+                    </button>
+                  </div>
                 </div>
 
-                {sdlc.rationale && (
-                  <div className="glass-card" style={{ marginBottom: 16 }}>
-                    <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>📝 Rationale</h3>
-                    <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.7 }}>{typeof sdlc.rationale === 'string' ? sdlc.rationale : sdlc.recommendation?.rationale || JSON.stringify(sdlc.rationale)}</p>
-                  </div>
-                )}
-
-                {sdlc.scores && (
-                  <div className="glass-card" style={{ marginBottom: 16 }}>
-                    <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>📈 Model Scores</h3>
-                    {Object.entries(sdlc.scores).map(([model, data]: [string, any]) => {
-                      const score = typeof data === 'number' ? data : data?.score || 0;
-                      return (
-                        <div key={model} style={{ marginBottom: 10 }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 3 }}>
-                            <span style={{ textTransform: 'capitalize' }}>{model.replace(/_/g, ' ')}</span>
-                            <span>{(score * 100).toFixed(0)}%</span>
-                          </div>
-                          <div className="score-meter">
-                            <div className="score-meter-fill" style={{ width: `${score * 100}%`, background: model === (sdlc.recommended_model) ? 'linear-gradient(90deg, var(--accent), var(--purple))' : 'var(--text-muted)' }} />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {sdlc.factors && (
-                  <div className="glass-card">
-                    <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>🎯 Decision Factors</h3>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                      {Object.entries(sdlc.factors).map(([factor, value]: [string, any]) => (
-                        <div key={factor} style={{ fontSize: 13 }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
-                            <span style={{ color: 'var(--text-secondary)' }}>{factor.replace(/_/g, ' ')}</span>
-                            <span>{(Number(value) * 100).toFixed(0)}%</span>
-                          </div>
-                          <div className="score-meter"><div className="score-meter-fill" style={{ width: `${Number(value) * 100}%`, background: Number(value) > 0.7 ? 'var(--danger)' : Number(value) > 0.4 ? 'var(--warning)' : 'var(--success)' }} /></div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Artefacts */}
-        {page === 'artefacts' && (
-          <div className="animate-fade-in">
-            <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 24 }}>📄 Artefact Generation</h1>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 24 }}>
-              {[
-                { type: 'srs', label: 'SRS Document', icon: '📑' },
-                { type: 'user_stories', label: 'User Stories', icon: '👤' },
-                { type: 'use_cases', label: 'Use Cases', icon: '🔄' },
-                { type: 'rtm', label: 'Traceability Matrix', icon: '🔗' },
-                { type: 'compliance_matrix', label: 'Compliance Matrix', icon: '⚖️' },
-                { type: 'threat_risk_register', label: 'Risk Register', icon: '⚠️' },
-                { type: 'sdlc_workflow', label: 'SDLC Workflow', icon: '📊' },
-                { type: 'acceptance_criteria', label: 'Acceptance Criteria', icon: '✅' },
-              ].map(a => (
-                <div key={a.type} className="glass-card" style={{ cursor: 'pointer', textAlign: 'center' }} onClick={() => generateArtefact(a.type)}>
-                  <div style={{ fontSize: 28, marginBottom: 8 }}>{a.icon}</div>
-                  <div style={{ fontSize: 13, fontWeight: 500 }}>{a.label}</div>
-                </div>
-              ))}
-            </div>
-
-            {artefact && (
-              <div className="glass-card">
-                <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>{artefact.title || artefact.artefact_type}</h3>
-                <pre style={{ fontSize: 13, color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', lineHeight: 1.6, maxHeight: 500, overflowY: 'auto' }}>
-                  {typeof artefact.content === 'string' ? artefact.content : JSON.stringify(artefact.content || artefact, null, 2)}
-                </pre>
-                {artefact.source_requirements && artefact.source_requirements.length > 0 && (
-                  <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Source requirements: </span>
-                    {artefact.source_requirements.map((id: string, i: number) => (
-                      <span key={i} className="badge badge-blue" style={{ marginLeft: 4 }}>{id}</span>
+                {/* Analysis Dimension Tabs */}
+                <div className="saas-card overflow-hidden">
+                  <div className="flex border-b border-slate-200 overflow-x-auto bg-slate-50/50">
+                    {[
+                      { id: 'compliance', label: 'Compliance & Statutory' },
+                      { id: 'security', label: 'Security & Privacy' },
+                      { id: 'risk', label: 'Risk Assessment' },
+                      { id: 'clarification', label: 'Ambiguities / Clarification' },
+                      { id: 'validation', label: 'Quality Validation' },
+                    ].map(tab => (
+                      <button
+                        key={tab.id}
+                        onClick={() => setActiveAnalysisTab(tab.id)}
+                        className={`px-5 py-3 text-xs font-semibold whitespace-nowrap border-b-2 transition-colors ${
+                          activeAnalysisTab === tab.id
+                            ? 'border-blue-600 text-blue-600 bg-white'
+                            : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100/50'
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
                     ))}
                   </div>
+
+                  <div className="p-6">
+                    {/* Compliance Tab */}
+                    {activeAnalysisTab === 'compliance' && (
+                      <div className="space-y-4">
+                        <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
+                          <strong>Advisory Disclaimer:</strong> Compliance findings are machine-generated guidelines derived from statutory frameworks. Final legal determination requires review by qualified institutional compliance personnel.
+                        </div>
+                        <div className="space-y-3">
+                          {analysisResults?.compliance?.compliance_analysis?.map((item: any, i: number) => (
+                            <div key={i} className="p-4 rounded-lg border border-slate-200 bg-white">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="font-mono text-xs font-bold text-blue-700">{item.requirement_id}</span>
+                                {item.approval_required && (
+                                  <span className="badge badge-yellow">Mandatory Review</span>
+                                )}
+                              </div>
+                              <div className="text-xs space-y-1.5 text-slate-600">
+                                <div>
+                                  <strong className="text-slate-800">Applicable Regulations: </strong>
+                                  {item.applicable_regulations?.map((r: any) => typeof r === 'string' ? r : r.name).join(', ') || 'Statutory standards'}
+                                </div>
+                                <div>
+                                  <strong className="text-slate-800">Mandated Controls: </strong>
+                                  {item.required_controls?.join('; ') || 'Standard access logs'}
+                                </div>
+                                {item.compliance_gaps?.length > 0 && (
+                                  <div className="text-red-700 font-medium">
+                                    <strong>Identified Gaps: </strong>{item.compliance_gaps.join(', ')}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Security Tab */}
+                    {activeAnalysisTab === 'security' && (
+                      <div className="space-y-3">
+                        {analysisResults?.security?.security_analysis?.map((sec: any, i: number) => (
+                          <div key={i} className="p-4 rounded-lg border border-slate-200 bg-white">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="font-mono text-xs font-bold text-blue-700">{sec.requirement_id}</span>
+                              <span className={`badge ${sec.threat_level === 'critical' ? 'badge-red' : 'badge-yellow'} uppercase`}>
+                                {sec.threat_level} Threat
+                              </span>
+                            </div>
+                            <div className="text-xs space-y-2 text-slate-600">
+                              <div>
+                                <strong className="text-slate-800">Security Concerns: </strong>
+                                {sec.security_concerns?.join(', ') || 'Confidentiality and tamper protection'}
+                              </div>
+                              <div>
+                                <strong className="text-slate-800">Recommended Controls: </strong>
+                                {sec.recommended_controls?.map((c: any) => typeof c === 'string' ? c : `${c.control} (${c.standard})`).join(', ')}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Risk Tab */}
+                    {activeAnalysisTab === 'risk' && (
+                      <div className="space-y-3">
+                        {analysisResults?.risk_analysis?.risk_assessment?.map((risk: any, i: number) => (
+                          <div key={i} className="p-4 rounded-lg border border-slate-200 bg-white">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="font-bold text-xs text-slate-800">{risk.risk_id}: {risk.category?.toUpperCase()} RISK</span>
+                              <span className={`badge ${risk.risk_level === 'high' || risk.risk_level === 'critical' ? 'badge-red' : 'badge-yellow'}`}>
+                                {risk.risk_level?.toUpperCase()}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-700 mb-2">{risk.description}</p>
+                            <div className="text-xs text-slate-500 bg-slate-50 p-2.5 rounded border border-slate-100">
+                              <strong className="text-slate-700">Mitigation Strategy: </strong>
+                              {risk.mitigation}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Clarification Tab */}
+                    {activeAnalysisTab === 'clarification' && (
+                      <div className="space-y-3">
+                        {analysisResults?.clarification?.questions?.length === 0 ? (
+                          <p className="text-xs text-slate-500 italic">No critical ambiguities or omissions detected in requirements.</p>
+                        ) : (
+                          analysisResults?.clarification?.questions?.map((q: any, i: number) => (
+                            <div key={i} className="p-4 rounded-lg border border-slate-200 bg-white">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="font-mono text-xs font-bold text-blue-700">{q.target_requirement}</span>
+                                <span className="badge badge-yellow capitalize">{q.priority} Priority</span>
+                              </div>
+                              <p className="text-xs font-semibold text-slate-800 mb-1">{q.question}</p>
+                              <p className="text-[11px] text-slate-500">Reason: {q.reason}</p>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
+
+                    {/* Validation Tab */}
+                    {activeAnalysisTab === 'validation' && (
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                          {Object.entries(analysisResults?.validation?.validation_results || {}).map(([metric, val]: any, i) => (
+                            <div key={i} className="p-4 rounded-lg bg-slate-50 border border-slate-200 text-center">
+                              <span className="text-xs text-slate-500 font-semibold uppercase">{metric}</span>
+                              <p className="text-2xl font-bold text-slate-900 mt-1">
+                                {typeof val === 'number' ? `${Math.round(val * 100)}%` : val}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ─────────────────────────────────────────────
+                STAGE 4: SDLC RECOMMENDATION
+            ───────────────────────────────────────────── */}
+            {currentStage === 'sdlc' && (
+              <div className="space-y-4">
+                <div className="saas-card p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">SDLC Methodology Recommendation</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Deterministic multi-criteria evaluation comparing 6 software development life-cycle models.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => navigateToStage('analysis')}
+                      className="btn-secondary text-xs"
+                    >
+                      ← Back to Analysis
+                    </button>
+                    <button
+                      onClick={handleProceedToSRS}
+                      disabled={srsLoading}
+                      className="btn-primary text-xs"
+                    >
+                      {srsLoading ? 'Generating SRS...' : 'Proceed to SRS Generation →'}
+                    </button>
+                  </div>
+                </div>
+
+                {sdlcResult && (
+                  <div className="space-y-4">
+                    {/* Recommended Card */}
+                    <div className="saas-card p-6 border-blue-200 bg-blue-50/20">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <span className="badge badge-blue text-xs uppercase font-bold">Recommended Methodology</span>
+                          <h4 className="text-lg font-bold text-slate-900">{sdlcResult.display_name}</h4>
+                        </div>
+                        <span className="text-xl font-bold text-blue-700">
+                          {Math.round(sdlcResult.recommended_score * 100)}% Match
+                        </span>
+                      </div>
+                      <p className="text-sm text-slate-700 leading-relaxed mb-4">
+                        {sdlcResult.rationale}
+                      </p>
+
+                      {sdlcResult.trade_offs && sdlcResult.trade_offs.length > 0 && (
+                        <div className="bg-white p-4 rounded-lg border border-slate-200 mb-4">
+                          <strong className="text-xs text-slate-800 block mb-2">Key Lifecycle Trade-Offs:</strong>
+                          <ul className="text-xs text-slate-600 space-y-1 list-disc pl-4">
+                            {sdlcResult.trade_offs.map((to: string, i: number) => (
+                              <li key={i}>{to}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Methodology Comparison Table */}
+                    <div className="saas-card p-6">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 mb-4">
+                        Comparative Model Fitness Scores
+                      </h4>
+                      <div className="space-y-3">
+                        {Object.entries(sdlcResult.scores || {}).map(([model, score]: any, i) => {
+                          const isRec = model === sdlcResult.recommended_model;
+                          const pct = Math.round(score * 100);
+
+                          return (
+                            <div key={i} className="flex items-center gap-4 text-xs">
+                              <span className="w-36 font-semibold text-slate-800 capitalize">
+                                {model.replace(/_/g, ' ')}
+                              </span>
+                              <div className="flex-1 bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full transition-all duration-500 ${
+                                    isRec ? 'bg-blue-600' : 'bg-slate-400'
+                                  }`}
+                                  style={{ width: `${pct}%` }}
+                                ></div>
+                              </div>
+                              <span className={`w-12 text-right font-mono font-bold ${isRec ? 'text-blue-700' : 'text-slate-600'}`}>
+                                {pct}%
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
                 )}
               </div>
             )}
-          </div>
-        )}
 
-        {/* Approvals */}
-        {page === 'approvals' && (
-          <div className="animate-fade-in">
-            <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 24 }}>✅ Approval Workflow</h1>
-            <div className="glass-card" style={{ textAlign: 'center', padding: 40 }}>
-              <p style={{ color: 'var(--text-muted)', marginBottom: 16 }}>Approval requests are generated when the system identifies decisions requiring human authorization:</p>
-              <ul style={{ textAlign: 'left', maxWidth: 500, margin: '0 auto', color: 'var(--text-secondary)', fontSize: 14, lineHeight: 2 }}>
-                <li>📋 Final requirement baselines</li>
-                <li>⚖️ Regulatory interpretations</li>
-                <li>🔒 High-risk security requirements</li>
-                <li>⚡ Conflicting stakeholder decisions</li>
-                <li>🏗️ Architecture-critical requirements</li>
-                <li>📊 SDLC methodology selection</li>
-                <li>🔄 Changes to approved requirements</li>
-                <li>🚀 Production readiness decisions</li>
-              </ul>
-            </div>
-          </div>
-        )}
+            {/* ─────────────────────────────────────────────
+                STAGE 5: SRS DOCUMENT (Keep ONLY SRS)
+            ───────────────────────────────────────────── */}
+            {currentStage === 'srs' && (
+              <div className="space-y-4">
+                <div className="saas-card p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">Software Requirements Specification (IEEE 29148)</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Formal, verifiable SRS ready for architectural review, regulatory examination, and sign-off.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button
+                      onClick={() => navigateToStage('sdlc')}
+                      className="btn-secondary text-xs"
+                    >
+                      ← Back to SDLC
+                    </button>
 
-        {/* Audit Trail */}
-        {page === 'audit' && (
-          <div className="animate-fade-in">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-              <h1 style={{ fontSize: 24, fontWeight: 700 }}>🕐 Audit Trail</h1>
-              <button className="btn-secondary" onClick={loadAudit}>🔄 Refresh</button>
-            </div>
-            {auditTrail.length === 0 ? (
-              <div className="glass-card" style={{ textAlign: 'center', padding: 40 }}>
-                <p style={{ color: 'var(--text-muted)' }}>No audit events yet. Run the analysis pipeline to generate audit entries.</p>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {auditTrail.map((entry: any, i: number) => (
-                  <div key={i} className="glass-card" style={{ padding: 16 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                        <span className="badge badge-purple">{entry.agent}</span>
-                        <span className="badge badge-blue">{entry.action}</span>
-                        <span className={`badge ${entry.status === 'success' ? 'badge-green' : 'badge-yellow'}`}>{entry.status}</span>
-                      </div>
-                      <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{entry.timestamp?.split('T')[1]?.split('.')[0] || entry.timestamp}</span>
+                    {/* Download Buttons */}
+                    <a
+                      href={srsAPI.getPdfDownloadUrl(activeProject.id)}
+                      download
+                      className="btn-secondary text-xs font-semibold text-blue-700 border-blue-200 hover:bg-blue-50"
+                    >
+                      📄 Download PDF
+                    </a>
+                    <a
+                      href={srsAPI.getDocxDownloadUrl(activeProject.id)}
+                      download
+                      className="btn-secondary text-xs font-semibold text-blue-700 border-blue-200 hover:bg-blue-50"
+                    >
+                      📝 Download DOCX
+                    </a>
+
+                    <button
+                      onClick={handleProceedToApproval}
+                      disabled={approvalLoading}
+                      className="btn-primary text-xs"
+                    >
+                      Submit for Sign-Off →
+                    </button>
+                  </div>
+                </div>
+
+                {/* SRS Structured Preview */}
+                <div className="saas-card p-8 bg-white border border-slate-200">
+                  <div className="border-b border-slate-200 pb-6 mb-6">
+                    <span className="badge badge-blue text-[11px] mb-2 uppercase tracking-wide">IEEE Std 29148-2018</span>
+                    <h2 className="text-2xl font-bold text-slate-900">{activeProject.name}</h2>
+                    <p className="text-sm text-slate-500 mt-1">Software Requirements Specification Baseline 1.0</p>
+                  </div>
+
+                  {srsData?.sections?.map((sec: any, idx: number) => (
+                    <div key={idx} className="mb-8">
+                      <h4 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-1.5 mb-3">
+                        {sec.num}. {sec.title}
+                      </h4>
+                      {sec.content && (
+                        <p className="text-xs text-slate-600 leading-relaxed mb-4">{sec.content}</p>
+                      )}
+
+                      {/* Subsections */}
+                      {sec.subsections?.map((sub: any, sIdx: number) => (
+                        <div key={sIdx} className="mb-4 pl-3 border-l-2 border-slate-100">
+                          <h5 className="text-xs font-semibold text-slate-800 mb-1">
+                            {sub.num} {sub.title}
+                          </h5>
+                          {sub.content && <p className="text-xs text-slate-600 leading-relaxed mb-2">{sub.content}</p>}
+                          {sub.items && (
+                            <ul className="text-xs text-slate-600 list-disc pl-4 space-y-1">
+                              {sub.items.map((it: string, itIdx: number) => (
+                                <li key={itIdx}>{it}</li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      ))}
+
+                      {/* Requirements table if functional */}
+                      {sec.requirements && (
+                        <div className="mt-3 overflow-x-auto">
+                          <table className="w-full text-left text-xs border border-slate-200 rounded-lg">
+                            <thead className="bg-slate-50 text-slate-700">
+                              <tr>
+                                <th className="p-2.5 font-semibold">ID</th>
+                                <th className="p-2.5 font-semibold">Specification Statement</th>
+                                <th className="p-2.5 font-semibold">Priority</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                              {sec.requirements.map((r: any, rIdx: number) => (
+                                <tr key={rIdx} className="hover:bg-slate-50/50">
+                                  <td className="p-2.5 font-mono font-bold text-blue-700">{r.requirement_id}</td>
+                                  <td className="p-2.5 text-slate-800">{r.statement}</td>
+                                  <td className="p-2.5 uppercase font-medium text-slate-600">{r.priority}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
                     </div>
-                    {entry.confidence !== undefined && (
-                      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>Confidence: {(entry.confidence * 100).toFixed(0)}%</div>
-                    )}
-                    {entry.issues && entry.issues.length > 0 && (
-                      <div style={{ marginTop: 4, fontSize: 12, color: 'var(--warning)' }}>{entry.issues.join('; ')}</div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ─────────────────────────────────────────────
+                STAGE 6: HUMAN APPROVAL WORKFLOW
+            ───────────────────────────────────────────── */}
+            {currentStage === 'approval' && (
+              <div className="space-y-4">
+                <div className="saas-card p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">Formal Human Approval & Governance</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Multi-stakeholder sign-off on requirements baseline and SDLC governance controls.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => navigateToStage('srs')}
+                      className="btn-secondary text-xs"
+                    >
+                      ← Back to SRS
+                    </button>
+                    {approvals.some(a => a.status === 'approved') && (
+                      <button
+                        onClick={() => navigateToStage('completed')}
+                        className="btn-primary text-xs"
+                      >
+                        Complete Project →
+                      </button>
                     )}
                   </div>
-                ))}
+                </div>
+
+                <div className="grid grid-cols-1 gap-4">
+                  {approvals.map((app, idx) => (
+                    <div key={idx} className="saas-card p-6 border-slate-200">
+                      <div className="flex items-start justify-between gap-4 mb-3">
+                        <div>
+                          <span className="badge badge-blue text-[10px] uppercase font-bold tracking-wider mb-1">
+                            {app.request_type?.replace(/_/g, ' ')}
+                          </span>
+                          <h4 className="text-base font-bold text-slate-900">{app.title}</h4>
+                          <p className="text-xs text-slate-600 mt-1">{app.description}</p>
+                        </div>
+                        <span
+                          className={`badge ${
+                            app.status === 'approved'
+                              ? 'badge-green'
+                              : app.status === 'rejected'
+                              ? 'badge-red'
+                              : 'badge-yellow'
+                          } uppercase text-xs`}
+                        >
+                          {app.status}
+                        </span>
+                      </div>
+
+                      {app.status === 'pending' && (
+                        <div className="mt-4 pt-4 border-t border-slate-100 space-y-3">
+                          <textarea
+                            value={approvalComment}
+                            onChange={e => setApprovalComment(e.target.value)}
+                            placeholder="Enter review comments or conditional sign-off notes..."
+                            className="input-clean text-xs h-20 resize-none"
+                          />
+                          <div className="flex items-center gap-3">
+                            <button
+                              onClick={() => handleActionApproval(app.id, 'approve')}
+                              disabled={approvalLoading}
+                              className="btn-primary text-xs bg-emerald-600 hover:bg-emerald-700"
+                            >
+                              Approve Baseline
+                            </button>
+                            <button
+                              onClick={() => handleActionApproval(app.id, 'modify')}
+                              disabled={approvalLoading}
+                              className="btn-secondary text-xs text-amber-700 border-amber-300 hover:bg-amber-50"
+                            >
+                              Request Changes
+                            </button>
+                            <button
+                              onClick={() => handleActionApproval(app.id, 'reject')}
+                              disabled={approvalLoading}
+                              className="btn-secondary text-xs text-red-700 border-red-300 hover:bg-red-50"
+                            >
+                              Reject
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ─────────────────────────────────────────────
+                STAGE 7: PROJECT COMPLETION
+            ───────────────────────────────────────────── */}
+            {currentStage === 'completed' && (
+              <div className="space-y-6">
+                <div className="saas-card p-8 text-center bg-white border border-slate-200">
+                  <div className="w-16 h-16 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center text-3xl mx-auto mb-4 border border-emerald-100">
+                    ✓
+                  </div>
+                  <h3 className="text-2xl font-bold text-slate-900">Project Baseline Approved</h3>
+                  <p className="text-sm text-slate-500 max-w-xl mx-auto mt-2">
+                    '{activeProject.name}' requirements specification has completed the full agentic engineering lifecycle and has been formally approved for implementation.
+                  </p>
+
+                  <div className="flex flex-wrap items-center justify-center gap-4 mt-6">
+                    <a
+                      href={srsAPI.getPdfDownloadUrl(activeProject.id)}
+                      download
+                      className="btn-primary text-xs"
+                    >
+                      📄 Download Approved SRS (PDF)
+                    </a>
+                    <a
+                      href={srsAPI.getDocxDownloadUrl(activeProject.id)}
+                      download
+                      className="btn-secondary text-xs"
+                    >
+                      📝 Download Approved SRS (DOCX)
+                    </a>
+                    <button
+                      onClick={() => setShowCreateModal(true)}
+                      className="btn-secondary text-xs"
+                    >
+                      + Create Next Project
+                    </button>
+                  </div>
+                </div>
+
+                {/* Audit Trail Viewer */}
+                <div className="saas-card p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-sm font-bold text-slate-900">Complete Immutable Audit Trail</h4>
+                    <button
+                      onClick={handleLoadAuditTrail}
+                      className="btn-secondary text-xs py-1"
+                    >
+                      Refresh Logs
+                    </button>
+                  </div>
+
+                  <div className="space-y-2 max-h-80 overflow-y-auto">
+                    {auditTrail.length === 0 ? (
+                      <p className="text-xs text-slate-400 italic">Click Refresh to load recorded transaction audit logs.</p>
+                    ) : (
+                      auditTrail.map((log, idx) => (
+                        <div key={idx} className="p-3 bg-slate-50 rounded border border-slate-100 flex items-center justify-between text-xs">
+                          <div>
+                            <span className="font-semibold text-slate-800 capitalize">{log.agent || log.event_type}</span>
+                            <span className="text-slate-400 mx-2">•</span>
+                            <span className="text-slate-600">{log.action}</span>
+                          </div>
+                          <span className="text-slate-400 font-mono text-[11px]">{log.timestamp?.slice(0, 19).replace('T', ' ')}</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
               </div>
             )}
           </div>
         )}
+      </main>
 
-        {loading && <div style={{ position: 'fixed', bottom: 24, right: 24, background: 'var(--accent)', color: 'white', padding: '8px 16px', borderRadius: 20, fontSize: 13, boxShadow: '0 4px 20px var(--accent-glow)' }} className="animate-pulse">⚙️ Processing...</div>}
-      </div>
+      {/* ─────────────────────────────────────────────
+          MODAL: CREATE PROJECT
+      ───────────────────────────────────────────── */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl border border-slate-200 max-w-md w-full p-6 animate-fade-in">
+            <h3 className="text-lg font-bold text-slate-900 mb-1">Create Financial Project</h3>
+            <p className="text-xs text-slate-500 mb-4">
+              Initialize a new requirements engineering lifecycle.
+            </p>
+
+            <form onSubmit={handleCreateProject} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Project Name</label>
+                <input
+                  type="text"
+                  required
+                  value={newProjectName}
+                  onChange={e => setNewProjectName(e.target.value)}
+                  placeholder="e.g. Commercial Loan Origination Suite"
+                  className="input-clean"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Scope Description</label>
+                <textarea
+                  value={newProjectDesc}
+                  onChange={e => setNewProjectDesc(e.target.value)}
+                  placeholder="Brief summary of domain requirements and objectives..."
+                  className="input-clean h-20 resize-none text-xs"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Domain Use Case</label>
+                  <select
+                    value={newProjectUseCase}
+                    onChange={e => setNewProjectUseCase(e.target.value)}
+                    className="input-clean text-xs"
+                  >
+                    <option value="loan_processing">Loan Processing</option>
+                    <option value="digital_onboarding">Customer Onboarding</option>
+                    <option value="payment_processing">Payment Processing</option>
+                    <option value="fraud_detection">Fraud Detection</option>
+                    <option value="regulatory_reporting">Regulatory Reporting</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Jurisdiction</label>
+                  <input
+                    type="text"
+                    value={newProjectJurisdiction}
+                    onChange={e => setNewProjectJurisdiction(e.target.value)}
+                    className="input-clean text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                  className="btn-secondary text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!newProjectName.trim()}
+                  className="btn-primary text-xs"
+                >
+                  Create & Start Interview
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─────────────────────────────────────────────
+          MODAL: PROJECT HISTORY
+      ───────────────────────────────────────────── */}
+      {showHistoryModal && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl border border-slate-200 max-w-lg w-full p-6 animate-fade-in">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-bold text-slate-900">Project History</h3>
+              <button
+                onClick={() => setShowHistoryModal(false)}
+                className="text-slate-400 hover:text-slate-600 text-lg leading-none"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {projects.length === 0 ? (
+                <p className="text-xs text-slate-500 italic">No projects found. Create your first project above.</p>
+              ) : (
+                projects.map((proj) => {
+                  const isCurrent = activeProject?.id === proj.id;
+                  return (
+                    <div
+                      key={proj.id}
+                      className={`p-4 rounded-lg border text-xs transition-colors flex items-center justify-between ${
+                        isCurrent
+                          ? 'border-blue-500 bg-blue-50/20'
+                          : 'border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <strong className="text-slate-900 text-sm">{proj.name}</strong>
+                          {isCurrent && <span className="badge badge-blue">Active</span>}
+                        </div>
+                        <p className="text-slate-500 mt-0.5 capitalize">
+                          {proj.use_case.replace('_', ' ')} • Stage: {proj.current_stage || 'interview'}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {!isCurrent && (
+                          <button
+                            onClick={() => selectProject(proj, token)}
+                            className="btn-secondary text-xs py-1"
+                          >
+                            Open
+                          </button>
+                        )}
+                        <a
+                          href={srsAPI.getPdfDownloadUrl(proj.id)}
+                          download
+                          className="text-xs text-blue-600 hover:underline px-2 py-1"
+                        >
+                          SRS PDF
+                        </a>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
