@@ -22,11 +22,11 @@ class ConflictDetectionAgent(BaseAgent):
             return AgentOutput(agent_name=self.name, status="success",
                              data={"conflicts": [], "duplicates": []}, confidence=1.0)
 
-        req_text = json.dumps(requirements[:30], indent=2)
+        compact_reqs = "\n".join([f"- {r.get('requirement_id', f'REQ-{i+1}')}: {r.get('statement', '').strip()}" for i, r in enumerate(requirements[:15])])
         prompt = f"""Analyse these requirements for conflicts, contradictions, and duplicates.
 
 Requirements:
-{req_text}
+{compact_reqs}
 
 Identify:
 1. Conflicts: requirements that contradict each other
@@ -34,7 +34,7 @@ Identify:
 3. Inconsistencies: requirements with mismatched assumptions
 Respond as JSON."""
 
-        result = await self.llm.generate_structured(prompt, SYSTEM_PROMPT)
+        result = await self.llm.generate_structured(prompt, SYSTEM_PROMPT, max_tokens=600)
         response_data = result["data"]
 
         if isinstance(response_data, dict):

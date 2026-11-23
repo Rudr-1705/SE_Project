@@ -58,14 +58,21 @@ class LLMGateway:
 
     async def generate_structured(self, prompt: str, system_prompt: str = "",
                                    schema: dict | None = None,
+                                   max_tokens: int | None = None,
                                    mask_pii: bool = True) -> dict:
         """Generate structured JSON with sanitization."""
         safe_prompt = mask_sensitive_data(prompt) if mask_pii else prompt
         safe_system = mask_sensitive_data(system_prompt) if mask_pii else system_prompt
 
-        result = await self.provider.generate_structured(
-            safe_prompt, safe_system, schema
-        )
+        try:
+            result = await self.provider.generate_structured(
+                safe_prompt, safe_system, schema, max_tokens=max_tokens
+            )
+        except TypeError:
+            # Fallback if provider doesn't accept max_tokens
+            result = await self.provider.generate_structured(
+                safe_prompt, safe_system, schema
+            )
 
         return {
             "data": result,

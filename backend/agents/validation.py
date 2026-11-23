@@ -19,20 +19,19 @@ class ValidationAgent(BaseAgent):
 
     async def run(self, agent_input: AgentInput) -> AgentOutput:
         requirements = agent_input.data.get("requirements", [])
-        req_text = json.dumps(requirements[:20], indent=2)
+        compact_reqs = "\n".join([f"- {r.get('requirement_id', f'REQ-{i+1}')}: {r.get('statement', '').strip()}" for i, r in enumerate(requirements[:15])])
 
         prompt = f"""Validate these financial system requirements for quality.
-Check for: ambiguity, incompleteness, inconsistency, duplication, infeasibility,
-lack of testability, missing source, undefined terminology, missing controls.
+Be concise.
 
 Requirements:
-{req_text}
+{compact_reqs}
 
 Provide: validation_results (completeness, consistency, testability, traceability scores 0-1),
-issues (array of {{type, requirement, detail}}), recommendations (array of strings).
+issues (array of {{type, requirement, detail}}), recommendations (up to 2 strings).
 Respond as JSON."""
 
-        result = await self.llm.generate_structured(prompt, SYSTEM_PROMPT)
+        result = await self.llm.generate_structured(prompt, SYSTEM_PROMPT, max_tokens=500)
         response_data = result["data"]
 
         if isinstance(response_data, dict):

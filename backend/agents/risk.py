@@ -20,19 +20,30 @@ class RiskAnalysisAgent(BaseAgent):
         requirements = agent_input.data.get("requirements", [])
         compliance_data = agent_input.data.get("compliance_analysis", [])
         security_data = agent_input.data.get("security_analysis", [])
+        jurisdiction = agent_input.data.get("jurisdiction", "India")
 
-        prompt = f"""Assess risks for this financial system based on requirements, compliance and security analysis.
+        compact_reqs = "\n".join([f"- {r.get('requirement_id', f'REQ-{i+1}')}: {r.get('statement', '').strip()}" for i, r in enumerate(requirements[:15])])
 
-Requirements: {json.dumps(requirements[:15], indent=2)}
-Compliance findings: {json.dumps(compliance_data[:10], indent=2) if compliance_data else 'None'}
-Security findings: {json.dumps(security_data[:10], indent=2) if security_data else 'None'}
+        prompt = f"""Assess risks for this financial system operating in jurisdiction: '{jurisdiction}'.
+Generate a concise risk register of exactly 2-3 core risks covering data security, regulatory compliance, and system availability.
+Be concise (max 1 sentence per field).
 
-For each risk provide: risk_id, category (compliance/technical/security/business/operational),
-description, likelihood (high/medium/low), impact (critical/high/medium/low),
-risk_level, mitigation strategy, related_requirements.
+Requirements:
+{compact_reqs}
+
+For each risk provide:
+- risk_id (e.g. RSK-001)
+- category (security/operational/technical/compliance/financial)
+- description (specific impact scenario)
+- likelihood (high/medium/low)
+- impact (critical/high/medium/low)
+- risk_level (critical/high/medium/low)
+- mitigation (actionable control)
+- related_requirements (array of requirement IDs)
+
 Respond as JSON."""
 
-        result = await self.llm.generate_structured(prompt, SYSTEM_PROMPT)
+        result = await self.llm.generate_structured(prompt, SYSTEM_PROMPT, max_tokens=600)
         response_data = result["data"]
 
         if isinstance(response_data, list):
@@ -52,24 +63,74 @@ Respond as JSON."""
             primary_id = requirements[0].get("requirement_id", "FR-LOAN-001")
             risks = [
                 {
-                    "risk_id": "RISK-001",
-                    "category": "compliance",
-                    "description": "Non-compliance with dynamic KYC/AML guidelines causing severe statutory penalties.",
-                    "likelihood": "medium",
-                    "impact": "critical",
-                    "risk_level": "high",
-                    "mitigation": "Automate verification checkpoints and mandate compliance officer sign-offs.",
-                    "related_requirements": [primary_id]
-                },
-                {
-                    "risk_id": "RISK-002",
+                    "risk_id": "RSK-001",
                     "category": "security",
-                    "description": "Unauthorized access to borrower financial records or encryption key compromise.",
+                    "description": "Customer financial PII exposure or data breach via application vulnerabilities or insecure storage.",
                     "likelihood": "low",
                     "impact": "critical",
                     "risk_level": "high",
-                    "mitigation": "Enforce zero-trust architecture, hardware KMS key management, and MFA.",
-                    "related_requirements": [r.get("requirement_id") for r in requirements if "SEC" in r.get("requirement_id", "")] or [primary_id]
+                    "mitigation": "Enforce field-level AES-256 encryption, TLS 1.3 in transit, and continuous vulnerability scanning.",
+                    "related_requirements": [primary_id]
+                },
+                {
+                    "risk_id": "RSK-002",
+                    "category": "security",
+                    "description": "Unauthorized access or privilege escalation to loan records and administrative controls.",
+                    "likelihood": "low",
+                    "impact": "critical",
+                    "risk_level": "high",
+                    "mitigation": "Implement strict MFA, cryptographic token revocation, and zero-trust API gateway authentication.",
+                    "related_requirements": [primary_id]
+                },
+                {
+                    "risk_id": "RSK-003",
+                    "category": "operational",
+                    "description": "Flawed credit eligibility determination resulting from erroneous calculation logic or stale bureau data.",
+                    "likelihood": "medium",
+                    "impact": "high",
+                    "risk_level": "high",
+                    "mitigation": "Dual automated underwriting checks, automated test assertions on scoring engine, and manual secondary review for edge cases.",
+                    "related_requirements": [primary_id]
+                },
+                {
+                    "risk_id": "RSK-004",
+                    "category": "technical",
+                    "description": "External integration outages (Credit Bureau / eKYC provider / Banking API) causing loan application stall.",
+                    "likelihood": "medium",
+                    "impact": "high",
+                    "risk_level": "medium",
+                    "mitigation": "Circuit breakers, automated exponential backoff retries, and asynchronous fallback queues.",
+                    "related_requirements": [primary_id]
+                },
+                {
+                    "risk_id": "RSK-005",
+                    "category": "compliance",
+                    "description": f"Regulatory non-compliance with {jurisdiction} statutory financial and AML due diligence directives.",
+                    "likelihood": "low",
+                    "impact": "critical",
+                    "risk_level": "high",
+                    "mitigation": "Formal compliance officer sign-off gateways, immutable audit trails, and automated regulatory checklist validation.",
+                    "related_requirements": [primary_id]
+                },
+                {
+                    "risk_id": "RSK-006",
+                    "category": "technical",
+                    "description": "Permanent data loss or transactional corruption during system disaster or primary storage failure.",
+                    "likelihood": "low",
+                    "impact": "critical",
+                    "risk_level": "high",
+                    "mitigation": "Continuous WAL archiving, point-in-time recovery (RPO < 15 min), and cross-zone replica failover (RTO < 1 hour).",
+                    "related_requirements": [primary_id]
+                },
+                {
+                    "risk_id": "RSK-007",
+                    "category": "operational",
+                    "description": "Extended system downtime disrupting loan processing during peak business hours.",
+                    "likelihood": "medium",
+                    "impact": "high",
+                    "risk_level": "medium",
+                    "mitigation": "Multi-instance load balancing, health probing, auto-scaling worker nodes, and 99.9% uptime SLA monitoring.",
+                    "related_requirements": [primary_id]
                 }
             ]
 

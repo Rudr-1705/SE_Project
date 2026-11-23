@@ -91,6 +91,7 @@ async def analyse_sdlc(
 
 
 @router.get("/sdlc/recommendation")
+@router.get("/sdlc/result")
 async def get_sdlc_recommendation(
     project_id: str,
     user: User = Depends(get_current_user),

@@ -23,6 +23,11 @@ os.environ["SECRET_KEY"] = "test-secret-key-for-stabilization-testing-12345"
 os.environ["LLM_PROVIDER"] = "mock"  # Deterministic test provider
 os.environ["OLLAMA_TIMEOUT"] = "300"
 
+from config import settings
+settings.LLM_PROVIDER = "mock"
+from llm.gateway import reset_llm_provider
+reset_llm_provider()
+
 from httpx import AsyncClient, ASGITransport
 from main import app
 from database import engine, Base, async_session_factory

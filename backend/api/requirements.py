@@ -191,10 +191,24 @@ async def extract_requirements(
             project_id, user.id, text, source_type, db=db
         )
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Requirement extraction pipeline error: {str(e)}"
-        )
+        logger.error(f"Extraction error for project {project_id}: {e}")
+        # Safeguard: Never crash endpoint or lose interview data. Attempt resilient fallback
+        session_internal = orchestrator._get_session(project_id)
+        conv = session_internal.get("conversation_history", [])
+        combined_text = text or "\n".join([f"{m.get('role', 'user')}: {m.get('content', '')}" for m in conv])
+        if combined_text:
+            from agents.extraction import ExtractionAgent
+            ext = ExtractionAgent()
+            fb_res = ext._heuristic_fallback_extraction(combined_text)
+            result = fb_res
+            session_internal["requirements"] = result.get("requirements", [])
+            session_internal["stage"] = "extraction"
+            await orchestrator.persist_to_db(project_id, db, stage="extraction")
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Requirement extraction pipeline error: {str(e)}"
+            )
 
     # Check existing requirements in DB to prevent duplicates
     existing_res = await db.execute(
@@ -277,10 +291,11 @@ async def extract_requirements(
 @router.post("/analyse")
 async def analyse_requirements(
     project_id: str,
+    force: bool = False,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Run full analysis pipeline with ownership check and requirement prerequisite check."""
+    """Run optimized batched analysis pipeline with caching, progress tracking, and ownership check."""
     project = await verify_project_ownership(project_id, user, db)
 
     # Workflow check: verify at least 1 requirement exists
@@ -294,7 +309,7 @@ async def analyse_requirements(
         )
 
     orchestrator = get_orchestrator()
-    result = await orchestrator.run_analysis_pipeline(project_id, user.id, db=db)
+    result = await orchestrator.run_analysis_pipeline(project_id, user.id, db=db, force=force)
 
     # Update project current stage if at extraction
     if project.current_stage == "extraction":
@@ -317,3 +332,28 @@ async def get_analysis_results(
     await orchestrator.sync_from_db(project_id, db)
     raw = orchestrator._get_session(project_id)
     return raw.get("analysis_results", {})
+
+
+@router.get("/analysis-progress")
+async def get_analysis_progress(
+    project_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get live multi-agent analysis progress and per-agent states."""
+    await verify_project_ownership(project_id, user, db)
+
+    orchestrator = get_orchestrator()
+    session = orchestrator._get_session(project_id)
+    return session.get("analysis_progress", {
+        "status": "idle",
+        "dimensions": {
+            "clarification": {"status": "pending", "progress": 0, "error": None},
+            "classification": {"status": "pending", "progress": 0, "error": None},
+            "conflict_detection": {"status": "pending", "progress": 0, "error": None},
+            "compliance": {"status": "pending", "progress": 0, "error": None},
+            "security": {"status": "pending", "progress": 0, "error": None},
+            "risk_analysis": {"status": "pending", "progress": 0, "error": None},
+            "validation": {"status": "pending", "progress": 0, "error": None},
+        }
+    })

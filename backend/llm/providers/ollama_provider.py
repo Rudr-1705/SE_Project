@@ -165,7 +165,8 @@ class OllamaProvider(BaseLLMProvider):
 
     async def generate_structured(self, prompt: str, system_prompt: str = "",
                                    schema: dict | None = None,
-                                   temperature: float = 0.1) -> dict:
+                                   temperature: float = 0.1,
+                                   max_tokens: int | None = None) -> dict:
         self.call_count += 1
 
         messages = []
@@ -175,6 +176,8 @@ class OllamaProvider(BaseLLMProvider):
         messages.append({"role": "system", "content": full_system})
         messages.append({"role": "user", "content": prompt})
 
+        predict_tokens = max_tokens if max_tokens is not None else self.max_tokens
+
         payload = {
             "model": self.model,
             "messages": messages,
@@ -183,7 +186,7 @@ class OllamaProvider(BaseLLMProvider):
             "format": "json",
             "options": {
                 "temperature": temperature,
-                "num_predict": self.max_tokens,  # Use full token limit
+                "num_predict": predict_tokens,
                 "num_ctx": self.context_window,
                 "num_thread": self.num_threads,
             },

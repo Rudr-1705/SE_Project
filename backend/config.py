@@ -40,9 +40,9 @@ class Settings(BaseSettings):
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     OLLAMA_MODEL: str = "qwen3:4b"
     OLLAMA_CONTEXT_WINDOW: int = 4096
-    OLLAMA_TIMEOUT: int = 300
+    OLLAMA_TIMEOUT: int = 360
     OLLAMA_NUM_THREADS: int = Field(default_factory=lambda: int(os.getenv("OLLAMA_NUM_THREADS", os.cpu_count() or 4)))
-    LLM_MAX_TOKENS: int = 4096
+    LLM_MAX_TOKENS: int = 2048
     LLM_TEMPERATURE: float = 0.2
 
     # Embeddings
@@ -54,7 +54,14 @@ class Settings(BaseSettings):
     CHROMA_COLLECTION: str = "knowledge_base"
 
     # Security
-    ALLOWED_ORIGINS: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    ALLOWED_ORIGINS: list[str] = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3001",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ]
     MAX_UPLOAD_SIZE_MB: int = 50
     SENSITIVE_FIELDS: list[str] = [
         "ssn", "social_security", "account_number", "credit_card",

@@ -43,6 +43,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS,
+    allow_origin_regex=r"^https?://.*$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -62,7 +63,8 @@ app.include_router(auth_router)
 app.include_router(projects_router)
 app.include_router(requirements_router)
 app.include_router(documents_router)
-app.include_router(approvals_router)
+app.include_router(approvals_router, prefix="/api")
+app.include_router(approvals_router)  # Also supports /projects/{id}/approvals directly
 app.include_router(sdlc_router)
 app.include_router(srs_router)
 

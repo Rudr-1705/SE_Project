@@ -26,29 +26,27 @@ class ComplianceAgent(BaseAgent):
     async def run(self, agent_input: AgentInput) -> AgentOutput:
         requirements = agent_input.data.get("requirements", [])
         evidence = agent_input.data.get("evidence", [])
+        jurisdiction = agent_input.data.get("jurisdiction", "India")
 
-        req_text = json.dumps(requirements[:15], indent=2)
-        evidence_text = json.dumps(evidence[:10], indent=2) if evidence else "No evidence provided"
+        compact_reqs = "\n".join([f"- {r.get('requirement_id', f'REQ-{i+1}')}: {r.get('statement', '').strip()}" for i, r in enumerate(requirements[:15])])
 
-        prompt = f"""Analyse these financial requirements for compliance. For each requirement determine:
-- applicable_regulations (with jurisdiction and relevance)
-- required_controls
-- compliance_gaps
-- evidence from knowledge base
-- whether approval is required
+        prompt = f"""Analyse these financial requirements for compliance in jurisdiction: '{jurisdiction}'.
+Keep entries concise (max 1 sentence per field). For each requirement determine:
+- requirement_id
+- applicable_regulations (top 2 specific to {jurisdiction})
+- required_controls (top 2 technical/operational safeguards)
+- compliance_gaps (potential omissions)
+- whether approval is required (True if high impact on statutory compliance)
 - data_retention obligations
 
 Requirements:
-{req_text}
-
-Available evidence/knowledge:
-{evidence_text}
+{compact_reqs}
 
 IMPORTANT: All output is advisory. Do NOT make final legal determinations.
-Flag high-impact interpretations for human review.
+Ground statutory regulations strictly in {jurisdiction}. Mark unresolved legal obligations as TBD.
 Respond as JSON."""
 
-        result = await self.llm.generate_structured(prompt, SYSTEM_PROMPT)
+        result = await self.llm.generate_structured(prompt, SYSTEM_PROMPT, max_tokens=700)
         response_data = result["data"]
 
         if isinstance(response_data, list):
@@ -59,18 +57,43 @@ Respond as JSON."""
             analysis = []
 
         if not analysis and requirements:
+            # Deterministic jurisdiction-aligned baseline
+            if "india" in jurisdiction.lower():
+                default_regs = [
+                    {"name": "RBI Master Direction on Digital Lending (2022/2023)", "jurisdiction": "India (RBI)", "relevance": "critical"},
+                    {"name": "Digital Personal Data Protection (DPDP) Act 2023", "jurisdiction": "India (MeitY)", "relevance": "high"},
+                    {"name": "Prevention of Money Laundering Act (PMLA) KYC Mandate", "jurisdiction": "India (FIU-IND)", "relevance": "critical"}
+                ]
+                default_retention = "Minimum 5-8 years per PMLA and RBI Master Direction records guidelines"
+            elif "us" in jurisdiction.lower() or "united states" in jurisdiction.lower():
+                default_regs = [
+                    {"name": "Gramm-Leach-Bliley Act (GLBA) Safeguards Rule", "jurisdiction": "USA (FTC/CFPB)", "relevance": "critical"},
+                    {"name": "Bank Secrecy Act / USA PATRIOT Act (AML/KYC)", "jurisdiction": "USA (FinCEN)", "relevance": "critical"},
+                    {"name": "Equal Credit Opportunity Act (ECOA / Reg B)", "jurisdiction": "USA (CFPB)", "relevance": "high"}
+                ]
+                default_retention = "Minimum 7 years pursuant to federal statutory retention requirements"
+            elif "uk" in jurisdiction.lower() or "united kingdom" in jurisdiction.lower():
+                default_regs = [
+                    {"name": "FCA Senior Management Arrangements, Systems and Controls (SYSC)", "jurisdiction": "UK (FCA)", "relevance": "critical"},
+                    {"name": "UK Data Protection Act 2018 & UK GDPR", "jurisdiction": "UK (ICO)", "relevance": "high"}
+                ]
+                default_retention = "Minimum 6 years post-customer relationship per FCA regulatory guidelines"
+            else:
+                default_regs = [
+                    {"name": f"{jurisdiction} Statutory Financial Regulatory Framework", "jurisdiction": jurisdiction, "relevance": "high"},
+                    {"name": f"{jurisdiction} Data Protection & Financial Privacy Directives", "jurisdiction": jurisdiction, "relevance": "high"}
+                ]
+                default_retention = f"Per {jurisdiction} statutory record retention guidelines"
+
             for r in requirements:
                 analysis.append({
                     "requirement_id": r.get("requirement_id", "REQ"),
-                    "applicable_regulations": [
-                        {"name": "KYC / Customer Due Diligence", "jurisdiction": "general", "relevance": "high"},
-                        {"name": "Data Privacy & Financial Protection Act", "jurisdiction": "statutory", "relevance": "high"}
-                    ],
-                    "required_controls": ["Automated KYC validation", "Immutable state logging"],
-                    "compliance_gaps": ["Requires formal compliance officer sign-off"],
-                    "evidence": ["Financial services regulatory framework mandate"],
+                    "applicable_regulations": default_regs,
+                    "required_controls": ["Automated KYC validation & audit trail", "Restricted access controls & cryptographic encryption"],
+                    "compliance_gaps": ["Requires formal sign-off by designated institutional compliance officer"],
+                    "evidence": [f"Statutory mandate for {jurisdiction}"],
                     "approval_required": True,
-                    "data_retention": "Minimum 7 years customer and transaction history"
+                    "data_retention": default_retention
                 })
 
         # Identify items needing human review
@@ -81,6 +104,7 @@ Respond as JSON."""
             data={
                 "compliance_analysis": analysis,
                 "disclaimer": DISCLAIMER,
+                "statutory_jurisdiction": jurisdiction,
                 "items_needing_review": len(items_needing_review),
                 "total_analysed": len(analysis) or len(requirements)
             },

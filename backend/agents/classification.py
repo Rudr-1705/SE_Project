@@ -23,16 +23,16 @@ class ClassificationAgent(BaseAgent):
             return AgentOutput(agent_name=self.name, status="success",
                              data={"classifications": []}, confidence=1.0)
 
-        req_text = json.dumps(requirements[:20], indent=2)
+        compact_reqs = "\n".join([f"- {r.get('requirement_id', f'REQ-{i+1}')}: {r.get('statement', '').strip()}" for i, r in enumerate(requirements[:15])])
         prompt = f"""Classify these financial requirements. For each provide primary category,
 subcategories, and domain labels. Use multi-label where appropriate.
 
 Requirements:
-{req_text}
+{compact_reqs}
 
 Respond as JSON with classifications array."""
 
-        result = await self.llm.generate_structured(prompt, SYSTEM_PROMPT)
+        result = await self.llm.generate_structured(prompt, SYSTEM_PROMPT, max_tokens=600)
         response_data = result["data"]
         classifications = response_data.get("classifications", [])
 

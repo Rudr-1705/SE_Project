@@ -15,7 +15,8 @@ class BaseLLMProvider(ABC):
     @abstractmethod
     async def generate_structured(self, prompt: str, system_prompt: str = "",
                                    schema: dict | None = None,
-                                   temperature: float = 0.1) -> dict:
+                                   temperature: float = 0.1,
+                                   max_tokens: int | None = None) -> dict:
         """Generate a structured (JSON) response from the LLM."""
         ...
 

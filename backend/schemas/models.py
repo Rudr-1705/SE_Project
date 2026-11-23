@@ -269,15 +269,15 @@ class ApprovalRequestResponse(BaseModel):
     request_type: str
     title: str
     description: str
-    context: dict
+    context: Optional[dict] = {}
     target_type: str
     target_id: str
-    required_roles: list
+    required_roles: Optional[list] = []
     status: str
     priority: str
     created_at: datetime
     resolved_at: Optional[datetime] = None
-    actions: list = []
+    actions: Optional[list] = []
 
     class Config:
         from_attributes = True

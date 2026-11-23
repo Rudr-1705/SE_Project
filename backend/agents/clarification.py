@@ -22,12 +22,12 @@ class ClarificationAgent(BaseAgent):
             return AgentOutput(agent_name=self.name, status="success",
                              data={"clarification_needed": False, "questions": []}, confidence=1.0)
 
-        req_text = json.dumps(requirements[:20], indent=2)
+        compact_reqs = "\n".join([f"- {r.get('requirement_id', f'REQ-{i+1}')}: {r.get('statement', '').strip()}" for i, r in enumerate(requirements[:15])])
         prompt = f"""Analyse these financial requirements for ambiguity, incompleteness, and vagueness.
-Generate specific follow-up questions for unclear items.
+Generate specific follow-up questions for unclear items (max 1 sentence per field).
 
 Requirements:
-{req_text}
+{compact_reqs}
 
 For each issue found provide:
 - target_requirement: the requirement ID
@@ -36,7 +36,7 @@ For each issue found provide:
 - priority: high/medium/low
 Respond as JSON."""
 
-        result = await self.llm.generate_structured(prompt, SYSTEM_PROMPT)
+        result = await self.llm.generate_structured(prompt, SYSTEM_PROMPT, max_tokens=500)
         response_data = result["data"]
 
         if isinstance(response_data, list):

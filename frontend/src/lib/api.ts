@@ -2,7 +2,9 @@
  * Typed API client for the AIFRE backend.
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+const envUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
+const rawBase = (envUrl || 'http://localhost:8000/api').replace(/\/+$/, '');
+const API_BASE = rawBase.endsWith('/api') ? rawBase : `${rawBase}/api`;
 
 type FetchOptions = {
   method?: string;
@@ -23,7 +25,18 @@ export async function apiFetch<T = any>(path: string, options: FetchOptions = {}
     config.body = isFormData ? body : JSON.stringify(body);
   }
 
-  const res = await fetch(`${API_BASE}${path}`, config);
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, config);
+  } catch (netErr: any) {
+    console.error(`Network request failed for ${path}:`, netErr);
+    throw new Error(
+      netErr?.message && netErr.message !== 'Failed to fetch'
+        ? netErr.message
+        : `Unable to connect to backend server (${path}). Ensure the backend is running on port 8000 and CORS origin matches.`
+    );
+  }
+
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error(err.detail || `API error ${res.status}`);
@@ -81,11 +94,14 @@ export const requirementsAPI = {
   extract: (token: string, projectId: string, text = '') =>
     apiFetch(`/projects/${projectId}/requirements/extract${text ? `?text=${encodeURIComponent(text)}` : ''}`, { method: 'POST', token }),
 
-  analyse: (token: string, projectId: string) =>
-    apiFetch(`/projects/${projectId}/requirements/analyse`, { method: 'POST', token }),
+  analyse: (token: string, projectId: string, force = false) =>
+    apiFetch(`/projects/${projectId}/requirements/analyse${force ? '?force=true' : ''}`, { method: 'POST', token }),
 
   getAnalysisResults: (token: string, projectId: string) =>
     apiFetch(`/projects/${projectId}/requirements/analysis-results`, { token }),
+
+  getAnalysisProgress: (token: string, projectId: string) =>
+    apiFetch(`/projects/${projectId}/requirements/analysis-progress`, { token }),
 };
 
 // ── SDLC ──

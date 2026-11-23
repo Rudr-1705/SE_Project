@@ -17,7 +17,7 @@ from schemas.models import (
 from security.auth import get_current_user
 from security.project_guard import verify_project_ownership
 
-router = APIRouter(prefix="/api/projects/{project_id}/approvals", tags=["approvals"])
+router = APIRouter(prefix="/projects/{project_id}/approvals", tags=["approvals"])
 
 
 @router.get("", response_model=list[ApprovalRequestResponse])
@@ -47,13 +47,15 @@ async def list_approvals(
             target_type="requirements",
             target_id=project_id,
             target_data={"version": "1.0", "status": "pending_stakeholder_review"},
+            context={},
             required_roles=[],
             status="pending",
             priority="high",
         )
         default_app.actions = []
         db.add(default_app)
-        await db.flush()
+        await db.commit()
+        await db.refresh(default_app)
         approvals = [default_app]
 
     return [ApprovalRequestResponse.model_validate(a) for a in approvals]
@@ -131,6 +133,13 @@ async def perform_approval_action(
         approval.status = "changes_requested"
         approval.resolved_at = datetime.now(timezone.utc)
 
+    # Sync with orchestrator in-memory session if active
+    from agents.orchestrator import get_orchestrator
+    orchestrator = get_orchestrator()
+    session = orchestrator._get_session(project_id)
+    if action_val == "approve":
+        session["stage"] = "completed"
+
     db.add(AuditLog(
         event_type="approval",
         action=action_val,
@@ -154,4 +163,5 @@ async def perform_approval_action(
         "approval_status": approval.status,
         "action": action_val,
         "reviewer": user.full_name,
+        "current_stage": project.current_stage,
     }

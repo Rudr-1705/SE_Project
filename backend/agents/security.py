@@ -17,23 +17,22 @@ class SecurityAgent(BaseAgent):
     dependencies = ["classification"]
 
     async def run(self, agent_input: AgentInput) -> AgentOutput:
-        requirements = agent_input.data.get("requirements", [])
-        req_text = json.dumps(requirements[:15], indent=2)
+        compact_reqs = "\n".join([f"- {r.get('requirement_id', f'REQ-{i+1}')}: {r.get('statement', '').strip()}" for i, r in enumerate(requirements[:15])])
 
         prompt = f"""Analyse these financial system requirements for security and privacy.
-For each requirement identify:
+Be concise (max 1 sentence per field). For each requirement identify:
 - security_concerns
-- privacy_concerns (PII, financial data, etc.)
+- privacy_concerns (PII, financial data)
 - recommended_controls (with applicable standards)
 - threat_level (critical/high/medium/low)
 - data_classification (public/internal/confidential/restricted)
 
 Requirements:
-{req_text}
+{compact_reqs}
 
 Respond as JSON."""
 
-        result = await self.llm.generate_structured(prompt, SYSTEM_PROMPT)
+        result = await self.llm.generate_structured(prompt, SYSTEM_PROMPT, max_tokens=600)
         response_data = result["data"]
 
         if isinstance(response_data, list):

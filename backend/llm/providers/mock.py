@@ -20,6 +20,27 @@ class MockLLMProvider(BaseLLMProvider):
 
         if "extract" in prompt_lower and "requirement" in prompt_lower:
             return self._mock_extraction_response(prompt)
+        elif "batch 1" in prompt_lower or ("clarification" in prompt_lower and "conflict" in prompt_lower and "validation" in prompt_lower):
+            clarif = json.loads(self._mock_clarification_response(prompt))
+            classif = json.loads(self._mock_classification_response(prompt))
+            conflict = json.loads(self._mock_conflict_response(prompt))
+            valid = json.loads(self._mock_validation_response(prompt))
+            return json.dumps({
+                "clarification": clarif,
+                "classification": classif,
+                "conflict_detection": conflict,
+                "validation": valid,
+            })
+        elif "batch 2" in prompt_lower or ("governance" in prompt_lower or ("compliance_analysis" in prompt_lower and "security_analysis" in prompt_lower)):
+            comp = json.loads(self._mock_compliance_response(prompt))
+            sec = json.loads(self._mock_security_response(prompt))
+            risk = json.loads(self._mock_risk_response(prompt))
+            return json.dumps({
+                "compliance": comp,
+                "security": sec,
+                "risk_analysis": risk,
+            })
+            return self._mock_extraction_response(prompt)
         elif "interview" in prompt_lower or "stakeholder" in prompt_lower:
             return self._mock_interview_response(prompt)
         elif "clarif" in prompt_lower:
@@ -48,7 +69,9 @@ class MockLLMProvider(BaseLLMProvider):
 
     async def generate_structured(self, prompt: str, system_prompt: str = "",
                                    schema: dict | None = None,
-                                   temperature: float = 0.1) -> dict:
+                                   temperature: float = 0.1,
+                                   max_tokens: int | None = None,
+                                   **kwargs) -> dict:
         self.call_count += 1
         text = await self.generate(prompt, system_prompt, temperature)
         try:
