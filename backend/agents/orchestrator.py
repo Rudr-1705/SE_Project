@@ -88,13 +88,14 @@ class Orchestrator:
                 if proj.current_stage:
                     session["stage"] = proj.current_stage
                 meta = proj.metadata_ or {}
-                if meta.get("conversation_history") and not session["conversation_history"]:
-                    session["conversation_history"] = meta["conversation_history"]
-                if meta.get("topics_covered") and not session["topics_covered"]:
+                if meta.get("conversation_history"):
+                    if len(meta["conversation_history"]) >= len(session.get("conversation_history", [])):
+                        session["conversation_history"] = meta["conversation_history"]
+                if meta.get("topics_covered"):
                     session["topics_covered"] = meta["topics_covered"]
-                if meta.get("analysis_results") and not session["analysis_results"]:
+                if meta.get("analysis_results"):
                     session["analysis_results"] = meta["analysis_results"]
-                if meta.get("srs_result") and not session["srs_result"]:
+                if meta.get("srs_result"):
                     session["srs_result"] = meta["srs_result"]
 
             # 2. Database requirements
@@ -261,10 +262,13 @@ class Orchestrator:
 
         # If no explicit text provided, compile the entire conversation history!
         if not text and session.get("conversation_history"):
-            text = "\n".join(
-                f"{m.get('role', 'user')}: {m.get('content', '')}"
-                for m in session["conversation_history"]
-            )
+            formatted_turns = []
+            for m in session["conversation_history"]:
+                speaker = "Stakeholder" if m.get("role") in ("user", "stakeholder") else "Interviewer"
+                body = m.get("content", "").strip()
+                if body:
+                    formatted_turns.append(f"{speaker}: {body}")
+            text = "\n\n".join(formatted_turns)
 
         existing_ids = [r.get("requirement_id", "") for r in session["requirements"]]
 
@@ -277,6 +281,10 @@ class Orchestrator:
         )
 
         result = await self.agents["requirement_extraction"].execute(agent_input)
+        if result.status == "error":
+            err = "; ".join(result.issues) if result.issues else result.data.get("error", "Unknown extraction error")
+            raise RuntimeError(f"Requirement extraction agent error: {err}")
+
         new_reqs = result.data.get("requirements", [])
 
         # Avoid duplicates by matching requirement statements

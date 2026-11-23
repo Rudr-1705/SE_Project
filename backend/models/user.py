@@ -1,7 +1,7 @@
-"""User model with RBAC roles."""
+"""User model with simple authentication."""
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, Boolean, DateTime, Text
+from sqlalchemy import Column, String, Boolean, DateTime
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -13,9 +13,7 @@ class User(Base):
     email = Column(String(255), unique=True, nullable=False, index=True)
     hashed_password = Column(String(255), nullable=False)
     full_name = Column(String(255), nullable=False)
-    role = Column(String(50), nullable=False, default="stakeholder")
-    # Roles: admin, project_manager, business_analyst, architect,
-    #        security_officer, compliance_officer, stakeholder, auditor
+    role = Column(String(50), nullable=False, default="user")
     organization = Column(String(255), default="")
     department = Column(String(255), default="")
     is_active = Column(Boolean, default=True)

@@ -83,7 +83,7 @@ export default function App() {
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authName, setAuthName] = useState('');
-  const [authRole, setAuthRole] = useState('business_analyst');
+  const [authRole, setAuthRole] = useState('user');
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState('');
 
@@ -567,26 +567,7 @@ export default function App() {
                 />
               </div>
 
-              {authMode === 'register' && (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                    Organizational Role
-                  </label>
-                  <select
-                    value={authRole}
-                    onChange={e => setAuthRole(e.target.value)}
-                    className="input-clean"
-                  >
-                    <option value="business_analyst">Business Analyst</option>
-                    <option value="project_manager">Project Manager</option>
-                    <option value="architect">Software Architect</option>
-                    <option value="security_officer">Security Officer</option>
-                    <option value="compliance_officer">Compliance Officer</option>
-                    <option value="stakeholder">Business Stakeholder</option>
-                    <option value="auditor">Auditor</option>
-                  </select>
-                </div>
-              )}
+
 
               <button
                 type="submit"
@@ -680,7 +661,7 @@ export default function App() {
                   <div className="px-4 py-2 border-b border-slate-100">
                     <p className="font-semibold text-slate-900">{user.full_name}</p>
                     <p className="text-slate-500 truncate">{user.email}</p>
-                    <span className="inline-block mt-1 badge badge-blue capitalize">{user.role.replace('_', ' ')}</span>
+                    <span className="inline-block mt-1 badge badge-blue capitalize">{(user.role || 'user').replace('_', ' ')}</span>
                   </div>
                   <button
                     onClick={() => { setShowHistoryModal(true); setShowProfileModal(false); }}

@@ -1,4 +1,4 @@
-"""Document upload and management API."""
+"""Document upload and management API with ownership verification."""
 import os
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
@@ -11,7 +11,7 @@ from models.audit import AuditLog
 from schemas.models import DocumentResponse
 from security.auth import get_current_user
 from security.sanitization import validate_file_type, validate_file_size
-from security.rbac import check_permission
+from security.project_guard import verify_project_ownership
 from config import settings
 from rag.ingestion import parse_document
 from rag.chunking import chunk_document
@@ -30,8 +30,7 @@ async def upload_document(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    if not check_permission(user, "documents", "create"):
-        raise HTTPException(status_code=403, detail="Cannot upload documents")
+    await verify_project_ownership(project_id, user, db)
 
     if not validate_file_type(file.filename):
         raise HTTPException(status_code=400, detail="Unsupported file type")
@@ -126,6 +125,8 @@ async def list_documents(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await verify_project_ownership(project_id, user, db)
+
     result = await db.execute(
         select(Document).where(Document.project_id == project_id)
         .order_by(Document.created_at.desc())

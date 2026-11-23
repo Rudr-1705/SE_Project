@@ -1,4 +1,4 @@
-"""Requirements API routes — extraction, analysis pipeline, CRUD with strict ownership."""
+"""Requirements API routes — extraction, analysis pipeline, and CRUD with strict ownership."""
 import json
 import uuid
 from datetime import datetime, timezone
@@ -12,7 +12,6 @@ from models.requirement import Requirement, RequirementVersion
 from models.audit import AuditLog
 from schemas.models import RequirementCreate, RequirementUpdate, RequirementResponse
 from security.auth import get_current_user
-from security.rbac import check_permission
 from security.project_guard import verify_project_ownership
 from agents.orchestrator import get_orchestrator
 
@@ -44,11 +43,8 @@ async def create_requirement(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Create manual requirement with ownership and permission checks."""
+    """Create manual requirement with ownership check."""
     await verify_project_ownership(project_id, user, db)
-
-    if not check_permission(user, "requirements", "create"):
-        raise HTTPException(status_code=403, detail="Cannot create requirements")
 
     # Generate requirement ID
     result = await db.execute(
@@ -97,9 +93,6 @@ async def update_requirement(
     """Update requirement with ownership verification."""
     await verify_project_ownership(project_id, user, db)
 
-    if not check_permission(user, "requirements", "update"):
-        raise HTTPException(status_code=403, detail="Cannot update requirements")
-
     result = await db.execute(
         select(Requirement).where(Requirement.id == req_id, Requirement.project_id == project_id)
     )
@@ -141,6 +134,31 @@ async def update_requirement(
     return RequirementResponse.model_validate(req)
 
 
+@router.delete("/{req_id}")
+async def delete_requirement(
+    project_id: str, req_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete requirement with ownership verification."""
+    await verify_project_ownership(project_id, user, db)
+
+    result = await db.execute(
+        select(Requirement).where(Requirement.id == req_id, Requirement.project_id == project_id)
+    )
+    req = result.scalar_one_or_none()
+    if not req:
+        raise HTTPException(status_code=404, detail="Requirement not found in this project")
+
+    req.is_current = False
+    req.status = "deleted"
+    db.add(AuditLog(event_type="requirement", action="delete",
+                    user_id=user.id, project_id=project_id,
+                    target_type="requirement", target_id=req.id))
+    await db.flush()
+    return {"status": "success", "message": "Requirement deleted"}
+
+
 @router.post("/extract")
 async def extract_requirements(
     project_id: str,
@@ -157,15 +175,26 @@ async def extract_requirements(
     session = orchestrator.get_session_state(project_id)
 
     # Workflow check: must have conversation history or provided text
-    if not text and session.get("conversation_length", 0) == 0:
+    meta = project.metadata_ or {}
+    has_history = (
+        session.get("conversation_length", 0) > 0
+        or bool(meta.get("conversation_history"))
+    )
+    if not text and not has_history:
         raise HTTPException(
             status_code=400,
             detail="Cannot extract requirements: No interview answers recorded and no text provided."
         )
 
-    result = await orchestrator.extract_requirements(
-        project_id, user.id, text, source_type, db=db
-    )
+    try:
+        result = await orchestrator.extract_requirements(
+            project_id, user.id, text, source_type, db=db
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Requirement extraction pipeline error: {str(e)}"
+        )
 
     # Check existing requirements in DB to prevent duplicates
     existing_res = await db.execute(
@@ -219,6 +248,11 @@ async def extract_requirements(
         db.add(AuditLog(event_type="requirement", action="extract",
                         user_id=user.id, project_id=project_id,
                         details={"count": len(persisted), "source_type": source_type}))
+
+    # Automatically advance stage if still at interview
+    if project.current_stage == "interview":
+        project.current_stage = "extraction"
+
     await db.flush()
 
     # Re-fetch all current requirements for response
@@ -227,6 +261,13 @@ async def extract_requirements(
         .order_by(Requirement.requirement_id.asc())
     )
     all_reqs = all_res.scalars().all()
+
+    if not all_reqs and not extracted:
+        raise HTTPException(
+            status_code=500,
+            detail="The extraction agent executed but returned 0 valid requirements from the input."
+        )
+
     result["requirements"] = [RequirementResponse.model_validate(r).model_dump() for r in all_reqs]
     result["count"] = len(all_reqs)
     result["persisted_ids"] = persisted
@@ -240,7 +281,7 @@ async def analyse_requirements(
     db: AsyncSession = Depends(get_db),
 ):
     """Run full analysis pipeline with ownership check and requirement prerequisite check."""
-    await verify_project_ownership(project_id, user, db)
+    project = await verify_project_ownership(project_id, user, db)
 
     # Workflow check: verify at least 1 requirement exists
     req_check = await db.execute(
@@ -254,6 +295,12 @@ async def analyse_requirements(
 
     orchestrator = get_orchestrator()
     result = await orchestrator.run_analysis_pipeline(project_id, user.id, db=db)
+
+    # Update project current stage if at extraction
+    if project.current_stage == "extraction":
+        project.current_stage = "analysis"
+        await db.flush()
+
     return result
 
 

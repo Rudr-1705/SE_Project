@@ -1,4 +1,4 @@
-"""Live Ollama Verification Test — exercises native Ollama Qwen3:8B integration."""
+"""Live Ollama Verification Test — exercises native Ollama Qwen3:4B integration."""
 import os
 import sys
 import httpx

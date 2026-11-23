@@ -4,13 +4,14 @@ A production-grade, multi-agent AI platform that automates the end-to-end Softwa
 
 ---
 
-## 🌟 Key Capabilities
+##  Key Capabilities
 
 1. **Sequential SaaS Workflow**:
    - Streamlined, distraction-free wizard eliminating dashboard clutter.
    - Sequential flow: `Register/Login → Create Project → Stakeholder Interview → Extraction → Analysis (7 Agents) → SDLC Selection → SRS Generation → Approval Sign-Off → Project Completion`.
-2. **Local LLM First (Ollama + Qwen3:8B)**:
-   - Configurable LLM provider architecture supporting Ollama (`qwen3:8b`), OpenAI (`gpt-4o`), and deterministic test mock.
+2. **Local LLM First (Ollama + Qwen3:4B)**:
+   - Configurable LLM provider architecture supporting Ollama (`qwen3:4b`), OpenAI (`gpt-4o`), and deterministic test mock.
+   - Optimized for local 16GB RAM CPU systems with non-thinking mode and thread tuning.
    - Resilient structured JSON outputs, markdown stripping, and prompt context isolation.
 3. **Multi-Agent Requirements Analysis**:
    - **Interview Agent**: Adaptive questioning with context tracking and domain-specific follow-ups.
@@ -32,7 +33,7 @@ A production-grade, multi-agent AI platform that automates the end-to-end Softwa
 
 ---
 
-## 🏗️ Architecture
+##  Architecture
 
 ```
                                   ┌─────────────────────────────┐
@@ -50,7 +51,7 @@ A production-grade, multi-agent AI platform that automates the end-to-end Softwa
                    ▼                             ▼                             ▼
        ┌───────────────────────┐   ┌───────────────────────────┐   ┌───────────────────────┐
        │     Agent Engine      │   │     Persistence Layer     │   │      LLM Gateway      │
-       │  13 Specialized Agents│   │   SQLite + SQLAlchemy     │   │  Ollama (Qwen3:8B)    │
+       │  13 Specialized Agents│   │   SQLite + SQLAlchemy     │   │  Ollama (Qwen3:4B)    │
        │  (Extraction, SDLC,   │   │   (aiosqlite + Schema     │   │  OpenAI (GPT-4o)      │
        │   Compliance, SRS)    │   │    Migrations + Chroma)   │   │  Deterministic Mock   │
        └───────────────────────┘   └───────────────────────────┘   └───────────────────────┘
@@ -58,7 +59,7 @@ A production-grade, multi-agent AI platform that automates the end-to-end Softwa
 
 ---
 
-## 🚀 Quick Start Guide
+##  Quick Start Guide
 
 ### Prerequisites
 - **Python**: 3.11+
@@ -67,16 +68,16 @@ A production-grade, multi-agent AI platform that automates the end-to-end Softwa
 
 ---
 
-### Step 1: LLM Setup (Ollama with Qwen3:8B)
+### Step 1: LLM Setup (Ollama with Qwen3:4B)
 
 1. Download and install Ollama from [ollama.com](https://ollama.com).
 2. Start the Ollama background daemon:
    ```bash
    ollama serve
    ```
-3. In a separate terminal, pull the recommended Qwen3:8B model:
+3. In a separate terminal, pull the recommended Qwen3:4B model (fast & lean for 16GB RAM CPU systems):
    ```bash
-   ollama pull qwen3:8b
+   ollama pull qwen3:4b
    ```
    *(Note: If running without Ollama, you can set `LLM_PROVIDER=mock` in `backend/.env` for instant offline testing.)*
 
@@ -148,7 +149,7 @@ Expected output:
 
 ---
 
-## 🎓 Step-by-Step Demo Procedure for Professor Evaluation
+##  Step-by-Step Demo Procedure for Professor Evaluation
 
 Follow this structured script when presenting AIFRE to professors, committee members, or evaluators:
 
@@ -211,7 +212,7 @@ Follow this structured script when presenting AIFRE to professors, committee mem
 
 ---
 
-## 📂 Project Structure
+##  Project Structure
 
 ```
 SE_Project/
@@ -240,7 +241,7 @@ SE_Project/
 │   ├── llm/                  # LLM Provider Abstraction
 │   │   ├── gateway.py        # Dynamic provider routing
 │   │   └── providers/
-│   │       ├── ollama_provider.py # Native Ollama HTTP client (Qwen3:8B)
+│   │       ├── ollama_provider.py # Native Ollama HTTP client (Qwen3:4B)
 │   │       ├── openai_provider.py # OpenAI client (GPT-4o)
 │   │       └── mock.py            # Dynamic prompt-aware test provider
 │   ├── models/               # SQLAlchemy Async Models
@@ -263,5 +264,5 @@ SE_Project/
 
 ---
 
-## 📜 License
+##  License
 Academic and Research Use — Developed for Software Requirements Engineering.

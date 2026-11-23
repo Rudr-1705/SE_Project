@@ -8,14 +8,15 @@ from typing import Optional
 # ── Enums ──────────────────────────────────────────────
 
 class UserRole(str, Enum):
-    ADMIN = "admin"
-    PROJECT_MANAGER = "project_manager"
-    BUSINESS_ANALYST = "business_analyst"
-    ARCHITECT = "architect"
-    SECURITY_OFFICER = "security_officer"
-    COMPLIANCE_OFFICER = "compliance_officer"
-    STAKEHOLDER = "stakeholder"
-    AUDITOR = "auditor"
+    USER = "user"
+    ADMIN = "user"
+    PROJECT_MANAGER = "user"
+    BUSINESS_ANALYST = "user"
+    ARCHITECT = "user"
+    SECURITY_OFFICER = "user"
+    COMPLIANCE_OFFICER = "user"
+    STAKEHOLDER = "user"
+    AUDITOR = "user"
 
 
 class RequirementStatus(str, Enum):
@@ -110,7 +111,7 @@ class UserCreate(BaseModel):
     email: str = Field(..., min_length=5)
     password: str = Field(..., min_length=8)
     full_name: str = Field(..., min_length=2)
-    role: UserRole = UserRole.STAKEHOLDER
+    role: Optional[str] = "user"
     organization: str = ""
     department: str = ""
 
@@ -124,10 +125,10 @@ class UserResponse(BaseModel):
     id: str
     email: str
     full_name: str
-    role: UserRole
-    organization: str
-    department: str
-    is_active: bool
+    role: str = "user"
+    organization: str = ""
+    department: str = ""
+    is_active: bool = True
     created_at: datetime
 
     class Config:

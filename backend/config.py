@@ -38,9 +38,10 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
     OPENAI_MODEL: str = "gpt-4o"
     OLLAMA_BASE_URL: str = "http://localhost:11434"
-    OLLAMA_MODEL: str = "qwen3:8b"
-    OLLAMA_CONTEXT_WINDOW: int = 8192
+    OLLAMA_MODEL: str = "qwen3:4b"
+    OLLAMA_CONTEXT_WINDOW: int = 4096
     OLLAMA_TIMEOUT: int = 300
+    OLLAMA_NUM_THREADS: int = Field(default_factory=lambda: int(os.getenv("OLLAMA_NUM_THREADS", os.cpu_count() or 4)))
     LLM_MAX_TOKENS: int = 4096
     LLM_TEMPERATURE: float = 0.2
 

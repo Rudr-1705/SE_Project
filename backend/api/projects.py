@@ -1,15 +1,17 @@
-"""Project API routes."""
+"""Project API routes — CRUD and stage transitions with project ownership."""
+import uuid
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from database import get_db
 from models.user import User
 from models.project import Project
+from models.requirement import Requirement
+from models.approval import ApprovalRequest
 from models.audit import AuditLog
 from schemas.models import ProjectCreate, ProjectResponse
 from security.auth import get_current_user
-from security.rbac import check_permission
-import uuid
+from security.project_guard import verify_project_ownership
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
 
@@ -20,9 +22,7 @@ async def create_project(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    if not check_permission(user, "projects", "create"):
-        raise HTTPException(status_code=403, detail="Cannot create projects")
-
+    """Create a new project owned by the current authenticated user."""
     project = Project(
         id=str(uuid.uuid4()),
         name=data.name,
@@ -47,13 +47,11 @@ async def list_projects(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    if user.role == "admin":
-        result = await db.execute(select(Project).order_by(Project.created_at.desc()))
-    else:
-        result = await db.execute(
-            select(Project).where(Project.owner_id == user.id)
-            .order_by(Project.created_at.desc())
-        )
+    """List all projects owned by the current authenticated user."""
+    result = await db.execute(
+        select(Project).where(Project.owner_id == user.id)
+        .order_by(Project.created_at.desc())
+    )
     projects = result.scalars().all()
     return [ProjectResponse.model_validate(p) for p in projects]
 
@@ -64,15 +62,27 @@ async def get_project(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Project).where(Project.id == project_id))
-    project = result.scalar_one_or_none()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-
-    if user.role != "admin" and project.owner_id != user.id:
-        raise HTTPException(status_code=403, detail="Not authorized to access this project")
-
+    """Get project details with ownership check."""
+    project = await verify_project_ownership(project_id, user, db)
     return ProjectResponse.model_validate(project)
+
+
+@router.delete("/{project_id}")
+async def delete_project(
+    project_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete a project owned by the current user."""
+    project = await verify_project_ownership(project_id, user, db)
+    await db.delete(project)
+    db.add(AuditLog(
+        event_type="project", action="delete",
+        user_id=user.id, project_id=project_id,
+        target_type="project", target_id=project_id
+    ))
+    await db.flush()
+    return {"status": "success", "message": "Project deleted successfully"}
 
 
 STAGE_ORDER = ["interview", "extraction", "analysis", "sdlc", "srs", "approval", "completed"]
@@ -85,13 +95,8 @@ async def update_project_stage(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Project).where(Project.id == project_id))
-    project = result.scalar_one_or_none()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-
-    if user.role != "admin" and project.owner_id != user.id:
-        raise HTTPException(status_code=403, detail="Not authorized to modify this project")
+    """Advance or revisit project stages with ownership check and prerequisite enforcement."""
+    project = await verify_project_ownership(project_id, user, db)
 
     new_stage = stage_data.get("stage")
     if not new_stage or new_stage not in STAGE_ORDER:
@@ -108,8 +113,6 @@ async def update_project_stage(
 
     # Workflow validation: enforce prerequisites when advancing forward
     meta = project.metadata_ or {}
-    from models.requirement import Requirement
-    from models.approval import ApprovalRequest
 
     if new_stage == "extraction":
         history = meta.get("conversation_history", [])

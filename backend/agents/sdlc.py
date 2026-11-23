@@ -91,10 +91,10 @@ class SDLCAgent(BaseAgent):
 
         # 3. Get LLM explanation
         prompt = f"""Given these SDLC model scores for a financial system:
-{json.dumps({k: round(v, 3) for k, v in scores.items()}, indent=2)}
+{json.dumps({k: round(v, 3) if isinstance(v, (int, float)) else v for k, v in scores.items()}, indent=2)}
 
 Project factors:
-{json.dumps({k: round(v, 3) for k, v in factors.items()}, indent=2)}
+{json.dumps({k: round(v, 3) if isinstance(v, (int, float)) else v for k, v in factors.items()}, indent=2)}
 
 The recommended model is: {SDLC_MODELS[recommended[0]]['display']} (score: {recommended[1]:.3f})
 Alternatives: {', '.join(f"{SDLC_MODELS[a[0]]['display']} ({a[1]:.3f})" for a in alternatives)}
@@ -110,6 +110,7 @@ Respond as JSON."""
             agent_name=self.name, status="success",
             data={
                 "recommended_model": recommended[0],
+                "recommended_framework": SDLC_MODELS[recommended[0]]["display"],
                 "display_name": SDLC_MODELS[recommended[0]]["display"],
                 "recommended_score": round(recommended[1], 3),
                 "scores": {k: round(v, 3) for k, v in scores.items()},

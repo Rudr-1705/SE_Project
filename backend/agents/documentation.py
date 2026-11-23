@@ -61,6 +61,8 @@ class DocumentationAgent(BaseAgent):
                 "title": srs_data["metadata"]["title"],
                 "system_name": project_name,
                 "version": srs_data["metadata"]["version"],
+                "status": srs_data["metadata"]["status"],
+                "approval_status": approval_status,
                 "srs_data": srs_data,
                 "pdf_path": pdf_path,
                 "docx_path": docx_path,

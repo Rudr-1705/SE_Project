@@ -18,10 +18,10 @@ class MockLLMProvider(BaseLLMProvider):
         self.call_count += 1
         prompt_lower = prompt.lower()
 
-        if "interview" in prompt_lower or "stakeholder" in prompt_lower:
-            return self._mock_interview_response(prompt)
-        elif "extract" in prompt_lower and "requirement" in prompt_lower:
+        if "extract" in prompt_lower and "requirement" in prompt_lower:
             return self._mock_extraction_response(prompt)
+        elif "interview" in prompt_lower or "stakeholder" in prompt_lower:
+            return self._mock_interview_response(prompt)
         elif "clarif" in prompt_lower:
             return self._mock_clarification_response(prompt)
         elif "classif" in prompt_lower:
@@ -122,7 +122,7 @@ class MockLLMProvider(BaseLLMProvider):
 
     def _mock_extraction_response(self, prompt: str) -> str:
         # Extract from the actual source text inside the prompt!
-        text_match = re.search(r"Source text:\s*([\s\S]*?)(?:Extract ALL identifiable|\Z)", prompt)
+        text_match = re.search(r"(?:Source text:|--- TRANSCRIPT BEGIN ---)\s*([\s\S]*?)(?:--- TRANSCRIPT END ---|Extract ALL identifiable|\Z)", prompt)
         source_text = text_match.group(1).strip() if text_match else prompt
 
         requirements = []
