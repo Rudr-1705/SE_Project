@@ -11,6 +11,16 @@ import {
   approvalsAPI,
   sessionAPI,
 } from '@/lib/api';
+import {
+  IconBank,
+  IconFolder,
+  IconAnalysis,
+  IconScale,
+  IconAlert,
+  IconFilePdf,
+  IconFileDoc,
+  IconCheck,
+} from './icons';
 
 // ── Types ─────────────────────────────────────────────
 type User = {
@@ -533,108 +543,154 @@ export default function App() {
   // ──────────────────────────────────────────────────────
   if (!token || !user) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-        <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-blue-600 text-white font-bold text-xl shadow-sm mb-4">
-            AI
-          </div>
-          <h2 className="text-2xl font-bold tracking-tight text-slate-900">
-            AIFRE Platform
-          </h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Agentic AI Financial Requirements Engineering
-          </p>
-        </div>
-
-        <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-          <div className="bg-white py-8 px-6 shadow-sm border border-slate-200 rounded-xl sm:px-10">
-            {/* Tab switch */}
-            <div className="flex border-b border-slate-200 mb-6">
-              <button
-                type="button"
-                onClick={() => setAuthMode('login')}
-                className={`flex-1 pb-3 text-sm font-medium border-b-2 text-center transition-colors ${
-                  authMode === 'login'
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                Sign In
-              </button>
-              <button
-                type="button"
-                onClick={() => setAuthMode('register')}
-                className={`flex-1 pb-3 text-sm font-medium border-b-2 text-center transition-colors ${
-                  authMode === 'register'
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                Create Account
-              </button>
+      <div className="min-h-screen bg-slate-50 lg:grid lg:grid-cols-[1.05fr_1fr]">
+        {/* Brand panel (desktop only) */}
+        <aside className="hidden lg:flex flex-col justify-between bg-blue-900 text-white px-14 xl:px-20 py-12">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-white/10 border border-white/15 text-white font-semibold flex items-center justify-center text-[13px] tracking-tight">
+              AI
             </div>
+            <span className="text-lg font-semibold tracking-tight">AIFRE</span>
+          </div>
 
-            {authError && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-                {authError}
-              </div>
-            )}
+          <div className="max-w-md">
+            <h1 className="text-[34px] leading-[1.15] font-semibold tracking-tight">
+              Financial requirements engineering, from interview to sign-off.
+            </h1>
+            <p className="mt-4 text-[15px] leading-relaxed text-blue-200">
+              A guided, multi-agent workflow that turns stakeholder conversations into an approved IEEE-aligned specification.
+            </p>
 
-            <form onSubmit={handleAuthSubmit} className="space-y-4">
-              {authMode === 'register' && (
+            <ul className="mt-10 space-y-6">
+              <li className="flex gap-4">
+                <span className="mt-0.5 w-8 h-8 shrink-0 rounded-lg bg-white/10 border border-white/10 flex items-center justify-center text-[13px] font-semibold text-blue-100">1</span>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                    Full Name
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={authName}
-                    onChange={e => setAuthName(e.target.value)}
-                    placeholder="e.g. Eleanor Vance"
-                    className="input-clean"
-                  />
+                  <p className="text-sm font-semibold text-white">Adaptive stakeholder interviews</p>
+                  <p className="text-[13px] leading-relaxed text-blue-200 mt-0.5">Context-aware questioning that extracts structured functional and non-functional requirements.</p>
+                </div>
+              </li>
+              <li className="flex gap-4">
+                <span className="mt-0.5 w-8 h-8 shrink-0 rounded-lg bg-white/10 border border-white/10 flex items-center justify-center text-[13px] font-semibold text-blue-100">2</span>
+                <div>
+                  <p className="text-sm font-semibold text-white">7-dimension analysis</p>
+                  <p className="text-[13px] leading-relaxed text-blue-200 mt-0.5">Compliance, security, risk, classification, conflict, clarification and validation.</p>
+                </div>
+              </li>
+              <li className="flex gap-4">
+                <span className="mt-0.5 w-8 h-8 shrink-0 rounded-lg bg-white/10 border border-white/10 flex items-center justify-center text-[13px] font-semibold text-blue-100">3</span>
+                <div>
+                  <p className="text-sm font-semibold text-white">Human-in-the-loop governance</p>
+                  <p className="text-[13px] leading-relaxed text-blue-200 mt-0.5">Formal sign-off gates with an immutable audit trail.</p>
+                </div>
+              </li>
+            </ul>
+          </div>
+
+          <p className="text-xs text-blue-300">Aligned with IEEE Std 29148</p>
+        </aside>
+
+        {/* Form column */}
+        <div className="flex min-h-screen flex-col justify-center px-5 py-12 sm:px-12">
+          <div className="mx-auto w-full max-w-md text-center lg:text-left">
+            <div className="lg:hidden inline-flex items-center justify-center w-12 h-12 rounded-xl bg-blue-800 text-white font-semibold text-lg tracking-tight shadow-sm mb-4">
+              AI
+            </div>
+            <h2 className="text-2xl font-semibold tracking-tight text-slate-900">
+              AIFRE Platform
+            </h2>
+            <p className="mt-1.5 text-sm text-slate-500">
+              Agentic AI Financial Requirements Engineering
+            </p>
+          </div>
+
+          <div className="mt-8 mx-auto w-full max-w-md">
+            <div className="bg-white py-8 px-6 shadow-md border border-slate-200 rounded-2xl sm:px-9 animate-fade-in">
+              {/* Tab switch */}
+              <div className="flex p-1 bg-slate-100 border border-slate-200/70 rounded-xl mb-7">
+                <button
+                  type="button"
+                  onClick={() => setAuthMode('login')}
+                  className={`flex-1 py-2 text-sm font-medium rounded-lg text-center transition-all ${
+                    authMode === 'login'
+                      ? 'bg-white text-slate-900 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  Sign In
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAuthMode('register')}
+                  className={`flex-1 py-2 text-sm font-medium rounded-lg text-center transition-all ${
+                    authMode === 'register'
+                      ? 'bg-white text-slate-900 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  Create Account
+                </button>
+              </div>
+
+              {authError && (
+                <div className="mb-5 p-3 bg-red-50 border border-red-200 rounded-lg text-[13px] leading-relaxed text-red-700">
+                  {authError}
                 </div>
               )}
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                  Corporate Email
-                </label>
-                <input
-                  type="email"
-                  required
-                  value={authEmail}
-                  onChange={e => setAuthEmail(e.target.value)}
-                  placeholder="analyst@institution.com"
-                  className="input-clean"
-                />
-              </div>
+              <form onSubmit={handleAuthSubmit} className="space-y-5">
+                {authMode === 'register' && (
+                  <div>
+                    <label className="field-label">
+                      Full Name
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={authName}
+                      onChange={e => setAuthName(e.target.value)}
+                      placeholder="e.g. Eleanor Vance"
+                      className="input-clean"
+                    />
+                  </div>
+                )}
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                  Password
-                </label>
-                <input
-                  type="password"
-                  required
-                  value={authPassword}
-                  onChange={e => setAuthPassword(e.target.value)}
-                  placeholder="••••••••••••"
-                  className="input-clean"
-                />
-              </div>
+                <div>
+                  <label className="field-label">
+                    Corporate Email
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={authEmail}
+                    onChange={e => setAuthEmail(e.target.value)}
+                    placeholder="analyst@institution.com"
+                    className="input-clean"
+                  />
+                </div>
 
+                <div>
+                  <label className="field-label">
+                    Password
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    value={authPassword}
+                    onChange={e => setAuthPassword(e.target.value)}
+                    placeholder="••••••••••••"
+                    className="input-clean"
+                  />
+                </div>
 
-
-              <button
-                type="submit"
-                disabled={authLoading}
-                className="w-full btn-primary py-2.5 mt-2"
-              >
-                {authLoading ? 'Verifying Credentials...' : authMode === 'login' ? 'Sign In' : 'Register Account'}
-              </button>
-            </form>
+                <button
+                  type="submit"
+                  disabled={authLoading}
+                  className="w-full btn-primary py-2.5 mt-1"
+                >
+                  {authLoading ? 'Verifying Credentials...' : authMode === 'login' ? 'Sign In' : 'Register Account'}
+                </button>
+              </form>
+            </div>
           </div>
         </div>
       </div>
@@ -649,7 +705,7 @@ export default function App() {
       {/* Toast Notification */}
       {notification && (
         <div
-          className={`fixed bottom-5 right-5 z-50 py-2.5 px-4 rounded-lg shadow-lg text-sm font-medium border flex items-center gap-2 animate-fade-in ${
+          className={`fixed bottom-5 right-5 z-50 max-w-sm py-3 px-4 rounded-xl shadow-lg text-[13.5px] leading-snug font-medium border flex items-center gap-2 animate-fade-in ${
             notification.type === 'error'
               ? 'bg-red-50 text-red-800 border-red-200'
               : notification.type === 'info'
@@ -662,30 +718,31 @@ export default function App() {
       )}
 
       {/* Top Persistent Header */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-blue-600 text-white font-bold flex items-center justify-center text-sm shadow-sm">
+      <header className="bg-white/90 backdrop-blur-md border-b border-slate-200 sticky top-0 z-30">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-8 h-8 shrink-0 rounded-lg bg-blue-800 text-white font-semibold flex items-center justify-center text-[13px] tracking-tight shadow-sm">
               AI
             </div>
-            <div>
-              <span className="font-bold text-slate-900 text-base tracking-tight">AIFRE</span>
-              <span className="hidden sm:inline-block ml-2 text-xs text-slate-400 font-medium border-l border-slate-200 pl-2">
+            <div className="shrink-0">
+              <span className="font-semibold text-slate-900 text-[15px] tracking-tight">AIFRE</span>
+              <span className="hidden sm:inline-block ml-2.5 text-xs text-slate-400 font-medium border-l border-slate-200 pl-2.5">
                 Requirements Engineering
               </span>
             </div>
 
             {activeProject && (
-              <div className="hidden md:flex items-center gap-2 ml-4 px-2.5 py-1 bg-slate-100 rounded-md text-xs font-medium text-slate-700">
-                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                <span className="font-semibold text-slate-900">{activeProject.name}</span>
+              <div className="hidden md:flex items-center gap-2 ml-3 pl-3 pr-2 py-1 min-w-0 bg-slate-100/80 border border-slate-200 rounded-full text-xs font-medium text-slate-700">
+                <span className="w-2 h-2 shrink-0 rounded-full bg-emerald-500"></span>
+                <span className="font-semibold text-slate-900 truncate max-w-[300px]">{activeProject.name}</span>
                 <span className="text-slate-400">•</span>
-                <span className="text-slate-600 capitalize">{activeProject.use_case.replace('_', ' ')}</span>
+                <span className="text-slate-600 capitalize whitespace-nowrap">{activeProject.use_case.replace('_', ' ')}</span>
                 {activeProject.jurisdiction && (
                   <>
                     <span className="text-slate-400">•</span>
                     <span className="badge badge-blue text-[10px] font-semibold">
-                      🏛️ {activeProject.jurisdiction}
+                      <IconBank className="w-3 h-3" />
+                      {activeProject.jurisdiction}
                     </span>
                   </>
                 )}
@@ -694,17 +751,17 @@ export default function App() {
           </div>
 
           {/* Right Header Navigation Controls */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <button
               onClick={() => setShowCreateModal(true)}
-              className="text-xs font-medium px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 flex items-center gap-1.5 transition-colors"
+              className="text-[13px] font-medium px-3 sm:px-3.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-slate-700 flex items-center gap-1.5 transition-colors shadow-xs whitespace-nowrap"
             >
               <span>+ New Project</span>
             </button>
 
             <button
               onClick={() => setShowHistoryModal(true)}
-              className="text-xs font-medium px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 flex items-center gap-1.5 transition-colors"
+              className="text-[13px] font-medium px-3 sm:px-3.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-slate-700 flex items-center gap-1.5 transition-colors shadow-xs whitespace-nowrap"
             >
               <span>Projects ({projects.length})</span>
             </button>
@@ -713,9 +770,9 @@ export default function App() {
             <div className="relative">
               <button
                 onClick={() => setShowProfileModal(!showProfileModal)}
-                className="flex items-center gap-2 pl-2 text-xs font-medium text-slate-700 hover:text-slate-900 focus:outline-none"
+                className="flex items-center gap-2 pl-1 text-[13px] font-medium text-slate-700 hover:text-slate-900 rounded-full"
               >
-                <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center text-xs border border-blue-200">
+                <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-800 font-semibold flex items-center justify-center text-xs border border-blue-200">
                   {user.full_name.charAt(0)}
                 </div>
                 <span className="hidden sm:inline">{user.full_name}</span>
@@ -723,7 +780,7 @@ export default function App() {
 
               {/* Account Dropdown Menu */}
               {showProfileModal && (
-                <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-slate-200 py-1.5 z-50 text-xs">
+                <div className="absolute right-0 mt-2 w-60 bg-white rounded-xl shadow-lg border border-slate-200 py-1.5 z-50 text-[13px] animate-fade-in">
                   <div className="px-4 py-2 border-b border-slate-100">
                     <p className="font-semibold text-slate-900">{user.full_name}</p>
                     <p className="text-slate-500 truncate">{user.email}</p>
@@ -731,20 +788,20 @@ export default function App() {
                   </div>
                   <button
                     onClick={() => { setShowHistoryModal(true); setShowProfileModal(false); }}
-                    className="w-full text-left px-4 py-2 text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                    className="w-full text-left px-4 py-2 text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors"
                   >
                     <span>Previous Projects</span>
                   </button>
                   <button
                     onClick={() => { handleLoadAuditTrail(); setShowProfileModal(false); }}
-                    className="w-full text-left px-4 py-2 text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                    className="w-full text-left px-4 py-2 text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors"
                   >
                     <span>Audit Log</span>
                   </button>
                   <div className="border-t border-slate-100 my-1"></div>
                   <button
                     onClick={handleLogout}
-                    className="w-full text-left px-4 py-2 text-red-600 hover:bg-red-50 flex items-center gap-2 font-medium"
+                    className="w-full text-left px-4 py-2 text-red-700 hover:bg-red-50 flex items-center gap-2 font-medium transition-colors"
                   >
                     <span>Sign Out</span>
                   </button>
@@ -756,7 +813,7 @@ export default function App() {
 
         {/* Sequential Progress Bar / Stepper */}
         {activeProject && (
-          <div className="border-t border-slate-100 bg-slate-50/50">
+          <div className="border-t border-slate-100 bg-slate-50/70">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 overflow-x-auto">
               <nav className="flex items-center justify-between min-w-[700px]">
                 {STAGES.map((s, idx) => {
@@ -768,18 +825,18 @@ export default function App() {
                     <button
                       key={s.id}
                       onClick={() => navigateToStage(s.id)}
-                      className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[13px] font-medium transition-all whitespace-nowrap ${
                         isActive
-                          ? 'bg-blue-600 text-white shadow-sm'
+                          ? 'bg-blue-800 text-white shadow-sm'
                           : isCompleted
                           ? 'text-slate-700 hover:bg-slate-200/60'
                           : 'text-slate-400 hover:text-slate-600'
                       }`}
                     >
                       <span
-                        className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                        className={`w-[18px] h-[18px] rounded-full flex items-center justify-center text-[10px] font-semibold ${
                           isActive
-                            ? 'bg-white text-blue-600'
+                            ? 'bg-white text-blue-800'
                             : isCompleted
                             ? 'bg-emerald-100 text-emerald-700'
                             : 'bg-slate-200 text-slate-500'
@@ -801,13 +858,13 @@ export default function App() {
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-10">
         {!activeProject ? (
           <div className="max-w-md mx-auto text-center py-16">
-            <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center text-2xl mx-auto mb-4 border border-blue-100">
-              📁
+            <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-700 flex items-center justify-center mx-auto mb-4 border border-blue-100">
+              <IconFolder className="w-7 h-7" />
             </div>
-            <h3 className="text-lg font-bold text-slate-900">No Active Project</h3>
+            <h3 className="text-lg font-semibold text-slate-900">No Active Project</h3>
             <p className="mt-1 text-sm text-slate-500 mb-6">
               Create a project to initiate the AI-guided requirements engineering workflow.
             </p>
@@ -825,25 +882,25 @@ export default function App() {
             ───────────────────────────────────────────── */}
             {currentStage === 'interview' && (
               <div className="saas-card overflow-hidden">
-                <div className="p-6 border-b border-slate-200 flex items-center justify-between">
+                <div className="p-6 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div>
-                    <h3 className="text-base font-bold text-slate-900">Adaptive Stakeholder Interview</h3>
-                    <p className="text-xs text-slate-500 mt-0.5">
+                    <h3 className="text-[17px] font-semibold tracking-tight text-slate-900">Adaptive Stakeholder Interview</h3>
+                    <p className="text-[13px] leading-relaxed text-slate-500 mt-1">
                       The AI agent conducts an interactive interview to discover functional workflows, regulatory boundaries, and security constraints.
                     </p>
                   </div>
                   <button
                     onClick={handleFinishInterviewAndExtract}
                     disabled={extractLoading || messages.length < 2}
-                    className="btn-primary text-xs"
+                    className="btn-primary"
                   >
                     {extractLoading ? 'Extracting Requirements...' : 'Complete & Extract Requirements →'}
                   </button>
                 </div>
 
                 {/* Topics Progress Checklist */}
-                <div className="px-6 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center gap-2 overflow-x-auto text-xs">
-                  <span className="text-slate-500 font-semibold uppercase text-[10px] tracking-wider">Topics Explored:</span>
+                <div className="px-6 py-3 bg-slate-50 border-b border-slate-200 flex items-center gap-2 overflow-x-auto text-xs">
+                  <span className="text-slate-500 font-semibold uppercase text-[10px] tracking-[0.08em] shrink-0">Topics Explored:</span>
                   {interviewTopics.length === 0 ? (
                     <span className="text-slate-400 italic">Conversation in progress...</span>
                   ) : (
@@ -856,20 +913,20 @@ export default function App() {
                 </div>
 
                 {/* Chat History Messages */}
-                <div className="p-6 h-[460px] overflow-y-auto space-y-4 bg-slate-50/30">
+                <div className="p-6 h-[55vh] min-h-[360px] sm:h-[480px] overflow-y-auto space-y-4 bg-slate-50/60">
                   {messages.map((msg, idx) => (
                     <div
                       key={idx}
                       className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
                       <div
-                        className={`max-w-2xl rounded-xl p-4 text-sm leading-relaxed ${
+                        className={`max-w-[88%] sm:max-w-2xl rounded-2xl px-4 py-3 text-[14.5px] leading-relaxed animate-fade-in ${
                           msg.role === 'user'
-                            ? 'bg-blue-600 text-white shadow-sm'
-                            : 'bg-white text-slate-800 border border-slate-200 shadow-sm'
+                            ? 'bg-blue-800 text-white rounded-br-md shadow-sm'
+                            : 'bg-white text-slate-800 border border-slate-200 rounded-bl-md shadow-xs'
                         }`}
                       >
-                        <div className="flex items-center gap-2 mb-1 opacity-75 text-[11px] font-semibold">
+                        <div className="flex items-center gap-2 mb-1 opacity-70 text-[11px] font-semibold tracking-wide">
                           <span>{msg.role === 'user' ? 'Stakeholder (You)' : 'AIFRE Requirements Specialist'}</span>
                         </div>
                         <p className="whitespace-pre-wrap">{msg.content}</p>
@@ -878,11 +935,11 @@ export default function App() {
                   ))}
                   {interviewLoading && (
                     <div className="flex justify-start">
-                      <div className="bg-white border border-slate-200 rounded-xl p-4 text-xs text-slate-500 flex items-center gap-2">
-                        <span className="animate-pulse">●</span>
-                        <span className="animate-pulse delay-100">●</span>
-                        <span className="animate-pulse delay-200">●</span>
-                        <span className="ml-1">Formulating follow-up question...</span>
+                      <div className="bg-white border border-slate-200 rounded-2xl rounded-bl-md px-4 py-3 text-xs text-slate-500 flex items-center gap-1.5 shadow-xs animate-fade-in">
+                        <span className="animate-pulse text-blue-700 text-[9px]">●</span>
+                        <span className="animate-pulse text-blue-700 text-[9px] [animation-delay:200ms]">●</span>
+                        <span className="animate-pulse text-blue-700 text-[9px] [animation-delay:400ms]">●</span>
+                        <span className="ml-1.5">Formulating follow-up question...</span>
                       </div>
                     </div>
                   )}
@@ -890,7 +947,7 @@ export default function App() {
                 </div>
 
                 {/* Response Input Box */}
-                <form onSubmit={handleSendAnswer} className="p-4 border-t border-slate-200 bg-white flex gap-2">
+                <form onSubmit={handleSendAnswer} className="p-4 border-t border-slate-200 bg-white flex gap-3">
                   <input
                     type="text"
                     value={interviewInput}
@@ -917,22 +974,22 @@ export default function App() {
               <div className="space-y-4">
                 <div className="saas-card p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
-                    <h3 className="text-base font-bold text-slate-900">Extracted Requirements Repository</h3>
-                    <p className="text-xs text-slate-500 mt-0.5">
+                    <h3 className="text-[17px] font-semibold tracking-tight text-slate-900">Extracted Requirements Repository</h3>
+                    <p className="text-[13px] leading-relaxed text-slate-500 mt-1">
                       Synthesized from stakeholder answers with unique identifiers, acceptance criteria, and priority rankings.
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => navigateToStage('interview')}
-                      className="btn-secondary text-xs"
+                      className="btn-secondary"
                     >
                       ← Back to Interview
                     </button>
                     <button
                       onClick={() => handleProceedToAnalysis()}
                       disabled={requirements.length === 0 || analysisLoading}
-                      className="btn-primary text-xs"
+                      className="btn-primary"
                     >
                       {analysisLoading ? 'Running Analysis...' : 'Proceed to Analysis →'}
                     </button>
@@ -974,8 +1031,8 @@ export default function App() {
                     .map((req, idx) => (
                       <div key={idx} className="saas-card p-5 hover:border-slate-300">
                         <div className="flex items-start justify-between gap-4 mb-2">
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-mono text-xs font-semibold text-blue-800 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-md">
                               {req.requirement_id}
                             </span>
                             <span className="badge badge-gray capitalize">{req.category}</span>
@@ -992,7 +1049,7 @@ export default function App() {
                             </span>
                           </div>
                           {req.confidence && (
-                            <span className="text-[11px] text-slate-400 font-medium">
+                            <span className="text-[11px] text-slate-400 font-medium whitespace-nowrap tabular-nums">
                               Confidence: {Math.round(req.confidence * 100)}%
                             </span>
                           )}
@@ -1034,17 +1091,17 @@ export default function App() {
                 <div className="saas-card p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
                     <div className="flex items-center gap-2">
-                      <h3 className="text-base font-bold text-slate-900">Multi-Agent Requirements Analysis</h3>
-                      <span className="badge badge-blue text-[10px] uppercase font-bold tracking-wider">7 Dimensions</span>
+                      <h3 className="text-[17px] font-semibold tracking-tight text-slate-900">Multi-Agent Requirements Analysis</h3>
+                      <span className="badge badge-blue text-[10px] uppercase font-semibold tracking-wider">7 Dimensions</span>
                     </div>
-                    <p className="text-xs text-slate-500 mt-0.5">
+                    <p className="text-[13px] leading-relaxed text-slate-500 mt-1">
                       Evaluated by specialized AI agents: Compliance, Security, Risk, Classification, Conflict, Ambiguity, and Quality Validation.
                     </p>
                   </div>
                     <div className="flex items-center gap-3">
                     <button
                       onClick={() => navigateToStage('extraction')}
-                      className="btn-secondary text-xs"
+                      className="btn-secondary"
                     >
                       ← Back to Requirements
                     </button>
@@ -1053,7 +1110,7 @@ export default function App() {
                         <button
                           onClick={() => handleProceedToAnalysis(true)}
                           disabled={analysisLoading}
-                          className="btn-secondary text-xs"
+                          className="btn-secondary"
                           title="Force re-run all 7 analysis agents"
                         >
                           {analysisLoading ? 'Re-running...' : '↻ Re-run Analysis'}
@@ -1061,7 +1118,7 @@ export default function App() {
                         <button
                           onClick={handleProceedToSDLC}
                           disabled={sdlcLoading}
-                          className="btn-primary text-xs"
+                          className="btn-primary"
                         >
                           {sdlcLoading ? 'Evaluating SDLC...' : 'Proceed to SDLC Recommendation →'}
                         </button>
@@ -1070,7 +1127,7 @@ export default function App() {
                       <button
                         onClick={() => handleProceedToAnalysis(false)}
                         disabled={analysisLoading}
-                        className="btn-primary text-xs"
+                        className="btn-primary"
                       >
                         {analysisLoading ? 'Running Multi-Agent Analysis...' : 'Run 7-Dimension Analysis →'}
                       </button>
@@ -1080,9 +1137,9 @@ export default function App() {
 
                 {/* Loading State: Agent Pipeline Progress */}
                 {analysisLoading && (
-                  <div className="saas-card p-8 text-center bg-slate-50/50 border border-blue-200">
-                    <div className="w-12 h-12 rounded-full border-4 border-blue-600 border-t-transparent animate-spin mx-auto mb-4"></div>
-                    <h4 className="text-sm font-bold text-slate-900 mb-1">
+                  <div className="saas-card p-8 sm:p-10 text-center bg-slate-50/60 border border-blue-200">
+                    <div className="w-11 h-11 rounded-full border-[3px] border-blue-700 border-t-transparent animate-spin mx-auto mb-5"></div>
+                    <h4 className="text-sm font-semibold text-slate-900 mb-1">
                       Executing 7-Stage Multi-Agent Analysis Pipeline...
                     </h4>
                     <p className="text-xs text-slate-500 max-w-md mx-auto mb-6">
@@ -1100,7 +1157,7 @@ export default function App() {
                       ].map((ag, i) => {
                         const dimState = analysisProgress?.dimensions?.[ag.key]?.status || 'in_progress';
                         return (
-                          <div key={i} className={`flex items-center gap-2 p-2.5 bg-white rounded border transition-colors ${
+                          <div key={i} className={`flex items-center gap-2.5 p-3 bg-white rounded-lg border transition-colors ${
                             dimState === 'completed' ? 'border-emerald-200 bg-emerald-50/20 text-emerald-800' :
                             dimState === 'failed' ? 'border-red-200 bg-red-50/20 text-red-800' :
                             'border-blue-200 text-slate-700 animate-pulse'
@@ -1112,7 +1169,7 @@ export default function App() {
                             }`}></span>
                             <div className="min-w-0">
                               <p className="text-[11px] font-semibold truncate">{ag.label}</p>
-                              <p className="text-[9px] text-slate-400 capitalize">{dimState.replace('_', ' ')}</p>
+                              <p className="text-[10px] text-slate-400 capitalize">{dimState.replace('_', ' ')}</p>
                             </div>
                           </div>
                         );
@@ -1124,9 +1181,9 @@ export default function App() {
                 {/* Partial Failure Warning Banner */}
                 {analysisResults && Object.entries(analysisResults).some(([_, val]: any) => val?.status === 'failed') && (
                   <div className="p-4 rounded-xl border border-amber-300 bg-amber-50/80 mb-6 flex items-start gap-3">
-                    <span className="text-xl">⚠️</span>
+                    <span className="text-amber-700 mt-px"><IconAlert className="w-5 h-5" /></span>
                     <div className="text-xs">
-                      <strong className="text-amber-900 font-bold block mb-0.5">Partial Dimension Analysis Alert</strong>
+                      <strong className="text-amber-900 font-semibold block mb-0.5">Partial Dimension Analysis Alert</strong>
                       <p className="text-amber-800">
                         One or more analysis agents encountered an execution error. Completed dimensions are visible below, but failed dimensions require re-running.
                       </p>
@@ -1137,16 +1194,16 @@ export default function App() {
                 {/* Empty State: Prompt to run analysis */}
                 {!analysisLoading && !analysisResults && (
                   <div className="saas-card p-10 text-center bg-white border border-slate-200">
-                    <div className="w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center text-2xl mx-auto mb-3 border border-blue-100">
-                      🔬
+                    <div className="w-14 h-14 rounded-2xl bg-blue-50 text-blue-700 flex items-center justify-center mx-auto mb-4 border border-blue-100">
+                      <IconAnalysis className="w-6 h-6" />
                     </div>
-                    <h4 className="text-base font-bold text-slate-900 mb-1">Ready for Multi-Agent Analysis</h4>
+                    <h4 className="text-[17px] font-semibold tracking-tight text-slate-900 mb-1">Ready for Multi-Agent Analysis</h4>
                     <p className="text-xs text-slate-500 max-w-md mx-auto mb-5">
                       All {requirements.length} requirements have been extracted. Click the button below to initiate multi-agent compliance, security, risk, and consistency evaluations.
                     </p>
                     <button
                       onClick={() => handleProceedToAnalysis()}
-                      className="btn-primary text-xs"
+                      className="btn-primary"
                     >
                       Run 7-Dimension Analysis Pipeline →
                     </button>
@@ -1156,7 +1213,7 @@ export default function App() {
                 {/* Analysis Dimension Tabs & Content */}
                 {!analysisLoading && analysisResults && (
                   <div className="saas-card overflow-hidden">
-                    <div className="flex border-b border-slate-200 overflow-x-auto bg-slate-50/50">
+                    <div className="flex border-b border-slate-200 overflow-x-auto bg-slate-50/70">
                       {[
                         { id: 'compliance', label: '1. Compliance & Statutory' },
                         { id: 'security', label: '2. Security & Privacy' },
@@ -1169,10 +1226,10 @@ export default function App() {
                         <button
                           key={tab.id}
                           onClick={() => setActiveAnalysisTab(tab.id)}
-                          className={`px-4 py-3 text-xs font-semibold whitespace-nowrap border-b-2 transition-colors ${
+                          className={`px-4 py-3.5 text-[13px] font-medium whitespace-nowrap border-b-2 transition-colors ${
                             activeAnalysisTab === tab.id
-                              ? 'border-blue-600 text-blue-600 bg-white'
-                              : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100/50'
+                              ? 'border-blue-700 text-blue-800 bg-white'
+                              : 'border-transparent text-slate-500 hover:text-slate-900 hover:bg-slate-100/60'
                           }`}
                         >
                           {tab.label}
@@ -1184,8 +1241,8 @@ export default function App() {
                       {/* Dimension 1: Compliance Tab */}
                       {activeAnalysisTab === 'compliance' && (
                         <div className="space-y-4">
-                          <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900 flex items-start gap-2">
-                            <span className="text-amber-700 font-bold">🏛️</span>
+                          <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-xs leading-relaxed text-amber-900 flex items-start gap-3">
+                            <span className="text-amber-700 mt-px"><IconBank className="w-4 h-4" /></span>
                             <div>
                               <strong>Jurisdiction Framework: </strong>
                               {analysisResults?.compliance?.statutory_jurisdiction || activeProject?.jurisdiction || 'Statutory Financial Guidelines'}.
@@ -1196,16 +1253,16 @@ export default function App() {
                           </div>
                           <div className="space-y-3">
                             {(analysisResults?.compliance?.compliance_analysis || []).map((item: any, i: number) => (
-                              <div key={i} className="p-4 rounded-lg border border-slate-200 bg-white shadow-sm">
+                              <div key={i} className="p-4 rounded-xl border border-slate-200 bg-white shadow-xs">
                                 <div className="flex items-center justify-between mb-2">
-                                  <span className="font-mono text-xs font-bold text-blue-700">{item.requirement_id}</span>
+                                  <span className="font-mono text-xs font-semibold text-blue-700">{item.requirement_id}</span>
                                   {item.approval_required ? (
                                     <span className="badge badge-yellow text-[10px]">Mandatory Compliance Sign-Off</span>
                                   ) : (
                                     <span className="badge badge-blue text-[10px]">Standard Oversight</span>
                                   )}
                                 </div>
-                                <div className="text-xs space-y-1.5 text-slate-600">
+                                <div className="text-[13px] leading-relaxed space-y-1.5 text-slate-600">
                                   <div>
                                     <strong className="text-slate-800">Applicable Regulations: </strong>
                                     {item.applicable_regulations?.map((r: any) => typeof r === 'string' ? r : `${r.name} (${r.jurisdiction || 'Statutory'})`).join(', ') || 'Statutory financial standards'}
@@ -1239,20 +1296,20 @@ export default function App() {
                         return (
                           <div className="space-y-3">
                             {secItems.length === 0 ? (
-                              <div className="p-6 text-center bg-slate-50 rounded-lg border border-slate-200">
+                              <div className="p-8 text-center bg-slate-50 rounded-xl border border-slate-200">
                                 <p className="text-xs font-semibold text-slate-800">Security & Privacy Controls Assessed</p>
                                 <p className="text-[11px] text-slate-500 mt-0.5">Standard statutory encryption (AES-256 / TLS 1.3) and least-privilege token access controls applicable.</p>
                               </div>
                             ) : (
                               secItems.map((sec: any, i: number) => (
-                                <div key={i} className="p-4 rounded-lg border border-slate-200 bg-white shadow-sm">
+                                <div key={i} className="p-4 rounded-xl border border-slate-200 bg-white shadow-xs">
                                   <div className="flex items-center justify-between mb-2">
-                                    <span className="font-mono text-xs font-bold text-blue-700">{sec.requirement_id || `SEC-${i + 1}`}</span>
+                                    <span className="font-mono text-xs font-semibold text-blue-700">{sec.requirement_id || `SEC-${i + 1}`}</span>
                                     <span className={`badge ${sec.threat_level === 'critical' ? 'badge-red' : (sec.threat_level === 'high' ? 'badge-yellow' : 'badge-blue')} uppercase text-[10px]`}>
                                       {sec.threat_level || 'standard'} Threat Level
                                     </span>
                                   </div>
-                                  <div className="text-xs space-y-2 text-slate-600">
+                                  <div className="text-[13px] leading-relaxed space-y-2 text-slate-600">
                                     <div>
                                       <strong className="text-slate-800">Security Concerns: </strong>
                                       {sec.security_concerns?.join(', ') || 'Confidentiality, integrity, and tamper protection'}
@@ -1285,15 +1342,15 @@ export default function App() {
                         return (
                           <div className="space-y-3">
                             {riskItems.length === 0 ? (
-                              <div className="p-6 text-center bg-slate-50 rounded-lg border border-slate-200">
+                              <div className="p-8 text-center bg-slate-50 rounded-xl border border-slate-200">
                                 <p className="text-xs font-semibold text-slate-800">Risk Assessment Register</p>
                                 <p className="text-[11px] text-slate-500 mt-0.5">Operational resilience and statutory compliance risk mitigations registered.</p>
                               </div>
                             ) : (
                               riskItems.map((risk: any, i: number) => (
-                                <div key={i} className="p-4 rounded-lg border border-slate-200 bg-white shadow-sm">
+                                <div key={i} className="p-4 rounded-xl border border-slate-200 bg-white shadow-xs">
                                   <div className="flex items-center justify-between mb-2">
-                                    <span className="font-bold text-xs text-slate-800">
+                                    <span className="font-semibold text-xs text-slate-800">
                                       {risk.risk_id || `RSK-00${i + 1}`}: {(risk.category || 'Operational').toUpperCase()} RISK
                                     </span>
                                     <span className={`badge ${risk.risk_level === 'high' || risk.risk_level === 'critical' ? 'badge-red' : 'badge-yellow'} uppercase text-[10px]`}>
@@ -1301,7 +1358,7 @@ export default function App() {
                                     </span>
                                   </div>
                                   <p className="text-xs text-slate-700 mb-2">{risk.description || 'Statutory and operational risk management.'}</p>
-                                  <div className="text-xs text-slate-600 bg-slate-50 p-2.5 rounded border border-slate-100">
+                                  <div className="text-[13px] leading-relaxed text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-100">
                                     <strong className="text-slate-800">Mitigation Strategy: </strong>
                                     {risk.mitigation || 'Continuous monitoring and automated controls.'}
                                   </div>
@@ -1316,11 +1373,11 @@ export default function App() {
                       {activeAnalysisTab === 'classification' && (
                         <div className="space-y-3">
                           {(analysisResults?.classification?.classifications || []).map((cls: any, i: number) => (
-                            <div key={i} className="p-4 rounded-lg border border-slate-200 bg-white shadow-sm">
+                            <div key={i} className="p-4 rounded-xl border border-slate-200 bg-white shadow-xs">
                               <div className="flex items-center justify-between mb-1.5">
-                                <span className="font-mono text-xs font-bold text-blue-700">{cls.requirement_id}</span>
+                                <span className="font-mono text-xs font-semibold text-blue-700">{cls.requirement_id}</span>
                                 <div className="flex items-center gap-1.5">
-                                  <span className="badge badge-blue text-[10px] uppercase font-bold">{cls.primary_category}</span>
+                                  <span className="badge badge-blue text-[10px] uppercase font-semibold">{cls.primary_category}</span>
                                   {cls.subcategory && (
                                     <span className="badge bg-slate-100 text-slate-700 text-[10px]">{cls.subcategory}</span>
                                   )}
@@ -1339,20 +1396,20 @@ export default function App() {
                       {activeAnalysisTab === 'conflict_detection' && (
                         <div className="space-y-3">
                           {(!analysisResults?.conflict_detection?.conflicts || analysisResults?.conflict_detection?.conflicts?.length === 0) ? (
-                            <div className="p-6 text-center bg-slate-50 rounded-lg border border-slate-200">
-                              <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 font-bold flex items-center justify-center text-sm mx-auto mb-2">✓</div>
+                            <div className="p-8 text-center bg-slate-50 rounded-xl border border-slate-200">
+                              <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-700 font-semibold flex items-center justify-center text-sm mx-auto mb-3">✓</div>
                               <p className="text-xs font-semibold text-slate-800">No Direct Inconsistencies or Contradictions Detected</p>
                               <p className="text-[11px] text-slate-500 mt-0.5">All functional and non-functional requirements exhibit mutually consistent constraints.</p>
                             </div>
                           ) : (
                             analysisResults?.conflict_detection?.conflicts?.map((c: any, i: number) => (
-                              <div key={i} className="p-4 rounded-lg border border-red-200 bg-red-50/20">
+                              <div key={i} className="p-4 rounded-xl border border-red-200 bg-red-50/40">
                                 <div className="flex items-center justify-between mb-1">
-                                  <span className="font-bold text-xs text-red-800">{c.conflict_id || `CONFLICT-${i + 1}`}: {c.conflict_type?.toUpperCase()}</span>
+                                  <span className="font-semibold text-xs text-red-800">{c.conflict_id || `CONFLICT-${i + 1}`}: {c.conflict_type?.toUpperCase()}</span>
                                   <span className="badge badge-red text-[10px]">{c.severity?.toUpperCase()}</span>
                                 </div>
                                 <p className="text-xs text-slate-700 mb-2">{c.description}</p>
-                                <div className="text-xs text-slate-600 bg-white p-2.5 rounded border border-slate-200">
+                                <div className="text-[13px] leading-relaxed text-slate-600 bg-white p-3 rounded-lg border border-slate-200">
                                   <strong className="text-slate-800">Resolution Strategy: </strong>
                                   {c.resolution_strategy}
                                 </div>
@@ -1366,16 +1423,16 @@ export default function App() {
                       {activeAnalysisTab === 'clarification' && (
                         <div className="space-y-3">
                           {(!analysisResults?.clarification?.questions || analysisResults?.clarification?.questions?.length === 0) ? (
-                            <div className="p-6 text-center bg-slate-50 rounded-lg border border-slate-200">
-                              <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 font-bold flex items-center justify-center text-sm mx-auto mb-2">✓</div>
+                            <div className="p-8 text-center bg-slate-50 rounded-xl border border-slate-200">
+                              <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-700 font-semibold flex items-center justify-center text-sm mx-auto mb-3">✓</div>
                               <p className="text-xs font-semibold text-slate-800">Requirements Specification Clear & Unambiguous</p>
                               <p className="text-[11px] text-slate-500 mt-0.5">No critical omissions or underspecified constraints detected in the elicited baseline.</p>
                             </div>
                           ) : (
                             analysisResults?.clarification?.questions?.map((q: any, i: number) => (
-                              <div key={i} className="p-4 rounded-lg border border-slate-200 bg-white shadow-sm">
+                              <div key={i} className="p-4 rounded-xl border border-slate-200 bg-white shadow-xs">
                                 <div className="flex items-center justify-between mb-1">
-                                  <span className="font-mono text-xs font-bold text-blue-700">{q.target_requirement}</span>
+                                  <span className="font-mono text-xs font-semibold text-blue-700">{q.target_requirement}</span>
                                   <span className="badge badge-yellow capitalize text-[10px]">{q.priority} Priority</span>
                                 </div>
                                 <p className="text-xs font-semibold text-slate-800 mb-1">{q.question}</p>
@@ -1391,16 +1448,16 @@ export default function App() {
                         <div className="space-y-4">
                           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                             {Object.entries(analysisResults?.validation?.validation_results || {}).map(([metric, val]: any, i) => (
-                              <div key={i} className="p-4 rounded-lg bg-slate-50 border border-slate-200 text-center">
-                                <span className="text-xs text-slate-500 font-semibold uppercase">{metric}</span>
-                                <p className="text-2xl font-bold text-slate-900 mt-1">
+                              <div key={i} className="p-5 rounded-xl bg-slate-50 border border-slate-200 text-center">
+                                <span className="text-[11px] text-slate-500 font-semibold uppercase tracking-[0.08em]">{metric}</span>
+                                <p className="text-2xl font-semibold text-slate-900 mt-1 tabular-nums">
                                   {typeof val === 'number' ? `${Math.round(val * 100)}%` : val}
                                 </p>
                               </div>
                             ))}
                           </div>
                           {analysisResults?.validation?.recommendations?.length > 0 && (
-                            <div className="p-4 bg-white rounded-lg border border-slate-200">
+                            <div className="p-5 bg-white rounded-xl border border-slate-200">
                               <strong className="text-xs text-slate-800 block mb-2">Quality Recommendations:</strong>
                               <ul className="text-xs text-slate-600 space-y-1 list-disc pl-4">
                                 {analysisResults.validation.recommendations.map((rec: string, rIdx: number) => (
@@ -1425,17 +1482,17 @@ export default function App() {
                 <div className="saas-card p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
                     <div className="flex items-center gap-2">
-                      <h3 className="text-base font-bold text-slate-900">SDLC Methodology Recommendation</h3>
-                      <span className="badge badge-blue text-[10px] uppercase font-bold tracking-wider">6 Models Evaluated</span>
+                      <h3 className="text-[17px] font-semibold tracking-tight text-slate-900">SDLC Methodology Recommendation</h3>
+                      <span className="badge badge-blue text-[10px] uppercase font-semibold tracking-wider">6 Models Evaluated</span>
                     </div>
-                    <p className="text-xs text-slate-500 mt-0.5">
+                    <p className="text-[13px] leading-relaxed text-slate-500 mt-1">
                       Deterministic multi-criteria evaluation comparing 6 software development life-cycle models based on requirements and analysis findings.
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => navigateToStage('analysis')}
-                      className="btn-secondary text-xs"
+                      className="btn-secondary"
                     >
                       ← Back to Analysis
                     </button>
@@ -1443,7 +1500,7 @@ export default function App() {
                       <button
                         onClick={handleProceedToSRS}
                         disabled={srsLoading}
-                        className="btn-primary text-xs"
+                        className="btn-primary"
                       >
                         {srsLoading ? 'Generating SRS...' : 'Proceed to SRS Generation →'}
                       </button>
@@ -1451,7 +1508,7 @@ export default function App() {
                       <button
                         onClick={handleProceedToSDLC}
                         disabled={sdlcLoading}
-                        className="btn-primary text-xs"
+                        className="btn-primary"
                       >
                         {sdlcLoading ? 'Evaluating SDLC...' : 'Evaluate Methodologies →'}
                       </button>
@@ -1461,9 +1518,9 @@ export default function App() {
 
                 {/* Loading State */}
                 {sdlcLoading && (
-                  <div className="saas-card p-8 text-center bg-slate-50/50 border border-blue-200">
-                    <div className="w-12 h-12 rounded-full border-4 border-blue-600 border-t-transparent animate-spin mx-auto mb-4"></div>
-                    <h4 className="text-sm font-bold text-slate-900 mb-1">
+                  <div className="saas-card p-8 sm:p-10 text-center bg-slate-50/60 border border-blue-200">
+                    <div className="w-11 h-11 rounded-full border-[3px] border-blue-700 border-t-transparent animate-spin mx-auto mb-5"></div>
+                    <h4 className="text-sm font-semibold text-slate-900 mb-1">
                       Evaluating 6 SDLC Methodologies...
                     </h4>
                     <p className="text-xs text-slate-500 max-w-md mx-auto">
@@ -1475,16 +1532,16 @@ export default function App() {
                 {/* Empty State */}
                 {!sdlcLoading && !sdlcResult && (
                   <div className="saas-card p-10 text-center bg-white border border-slate-200">
-                    <div className="w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center text-2xl mx-auto mb-3 border border-blue-100">
-                      ⚖️
+                    <div className="w-14 h-14 rounded-2xl bg-blue-50 text-blue-700 flex items-center justify-center mx-auto mb-4 border border-blue-100">
+                      <IconScale className="w-6 h-6" />
                     </div>
-                    <h4 className="text-base font-bold text-slate-900 mb-1">SDLC Recommendation Ready</h4>
+                    <h4 className="text-[17px] font-semibold tracking-tight text-slate-900 mb-1">SDLC Recommendation Ready</h4>
                     <p className="text-xs text-slate-500 max-w-md mx-auto mb-5">
                       Requirements and 7-dimension analysis have been synthesized. Click below to generate multi-criteria fitness scores and governance trade-offs for all 6 models.
                     </p>
                     <button
                       onClick={handleProceedToSDLC}
-                      className="btn-primary text-xs"
+                      className="btn-primary"
                     >
                       Evaluate SDLC Methodologies →
                     </button>
@@ -1495,22 +1552,22 @@ export default function App() {
                 {!sdlcLoading && sdlcResult && (
                   <div className="space-y-4">
                     {/* Recommended Card */}
-                    <div className="saas-card p-6 border-blue-200 bg-blue-50/20">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          <span className="badge badge-blue text-xs uppercase font-bold">Recommended Methodology</span>
-                          <h4 className="text-lg font-bold text-slate-900">{sdlcResult.display_name}</h4>
+                    <div className="saas-card p-6 sm:p-7 border-blue-200 bg-blue-50/40">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                        <div className="flex flex-wrap items-center gap-2.5">
+                          <span className="badge badge-blue text-xs uppercase font-semibold">Recommended Methodology</span>
+                          <h4 className="text-lg font-semibold tracking-tight text-slate-900">{sdlcResult.display_name}</h4>
                         </div>
-                        <span className="text-2xl font-bold text-blue-700">
+                        <span className="text-2xl font-semibold text-blue-800 tabular-nums">
                           {Math.round(sdlcResult.recommended_score * 100)}% Match
                         </span>
                       </div>
-                      <p className="text-sm text-slate-700 leading-relaxed mb-4">
+                      <p className="text-sm text-slate-700 leading-relaxed mb-5 max-w-3xl">
                         {sdlcResult.rationale}
                       </p>
 
                       {sdlcResult.trade_offs && sdlcResult.trade_offs.length > 0 && (
-                        <div className="bg-white p-4 rounded-lg border border-slate-200 mb-2">
+                        <div className="bg-white p-4 rounded-xl border border-slate-200 mb-2">
                           <strong className="text-xs text-slate-800 block mb-2">Key Lifecycle Governance Trade-Offs:</strong>
                           <ul className="text-xs text-slate-600 space-y-1.5 list-disc pl-4">
                             {sdlcResult.trade_offs.map((to: string, i: number) => (
@@ -1523,7 +1580,7 @@ export default function App() {
 
                     {/* Methodology Comparison Table */}
                     <div className="saas-card p-6">
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 mb-4">
+                      <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-700 mb-4">
                         Comparative Model Fitness Scores
                       </h4>
                       <div className="space-y-3">
@@ -1533,18 +1590,18 @@ export default function App() {
 
                           return (
                             <div key={i} className="flex items-center gap-4 text-xs">
-                              <span className="w-40 font-semibold text-slate-800 capitalize">
+                              <span className="w-28 sm:w-44 shrink-0 font-medium text-slate-800 capitalize">
                                 {model.replace(/_/g, ' ')}
                               </span>
-                              <div className="flex-1 bg-slate-100 rounded-full h-3 overflow-hidden">
+                              <div className="flex-1 bg-slate-100 rounded-full h-2.5 overflow-hidden">
                                 <div
                                   className={`h-full rounded-full transition-all duration-500 ${
-                                    isRec ? 'bg-blue-600' : 'bg-slate-400'
+                                    isRec ? 'bg-blue-700' : 'bg-slate-300'
                                   }`}
                                   style={{ width: `${pct}%` }}
                                 ></div>
                               </div>
-                              <span className={`w-14 text-right font-mono font-bold ${isRec ? 'text-blue-700' : 'text-slate-600'}`}>
+                              <span className={`w-14 text-right font-mono font-semibold tabular-nums ${isRec ? 'text-blue-800' : 'text-slate-500'}`}>
                                 {pct}%
                               </span>
                             </div>
@@ -1556,7 +1613,7 @@ export default function App() {
                     {/* 6-Model Comparative Catalog */}
                     {sdlcResult.evaluated_models && (
                       <div className="saas-card p-6">
-                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 mb-4">
+                        <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-700 mb-4">
                           Detailed Methodology Evaluations (6 Models)
                         </h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1565,18 +1622,18 @@ export default function App() {
                               key={idx}
                               className={`p-4 rounded-xl border ${
                                 m.is_recommended
-                                  ? 'border-blue-400 bg-blue-50/20 shadow-sm'
+                                  ? 'border-blue-300 bg-blue-50/50 shadow-sm'
                                   : 'border-slate-200 bg-white'
                               }`}
                             >
                               <div className="flex items-center justify-between mb-2">
-                                <h5 className="font-bold text-xs text-slate-900">{m.display_name}</h5>
-                                <span className={`badge ${m.is_recommended ? 'badge-blue font-bold' : 'bg-slate-100 text-slate-700'} text-[11px]`}>
+                                <h5 className="font-semibold text-xs text-slate-900">{m.display_name}</h5>
+                                <span className={`badge ${m.is_recommended ? 'badge-blue font-semibold' : 'badge-gray'} text-[11px]`}>
                                   {Math.round(m.score * 100)}% Match
                                 </span>
                               </div>
-                              <p className="text-xs text-slate-600 mb-3">{m.description}</p>
-                              <div className="space-y-1.5 text-[11px]">
+                              <p className="text-[13px] leading-relaxed text-slate-600 mb-3">{m.description}</p>
+                              <div className="space-y-1.5 text-xs leading-relaxed">
                                 <div>
                                   <span className="font-semibold text-emerald-700">Advantages: </span>
                                   <span className="text-slate-600">{m.pros?.join('; ')}</span>
@@ -1603,15 +1660,15 @@ export default function App() {
               <div className="space-y-4">
                 <div className="saas-card p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
-                    <h3 className="text-base font-bold text-slate-900">Software Requirements Specification (IEEE 29148)</h3>
-                    <p className="text-xs text-slate-500 mt-0.5">
+                    <h3 className="text-[17px] font-semibold tracking-tight text-slate-900">Software Requirements Specification (IEEE 29148)</h3>
+                    <p className="text-[13px] leading-relaxed text-slate-500 mt-1">
                       Formal, verifiable SRS ready for architectural review, regulatory examination, and sign-off.
                     </p>
                   </div>
-                  <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex flex-wrap xl:flex-nowrap xl:shrink-0 items-center gap-3">
                     <button
                       onClick={() => navigateToStage('sdlc')}
-                      className="btn-secondary text-xs"
+                      className="btn-secondary"
                     >
                       ← Back to SDLC
                     </button>
@@ -1620,22 +1677,24 @@ export default function App() {
                     <button
                       type="button"
                       onClick={() => handleDownloadPdf()}
-                      className="btn-secondary text-xs font-semibold text-blue-700 border-blue-200 hover:bg-blue-50"
+                      className="btn-secondary text-blue-800 border-blue-200 hover:bg-blue-50"
                     >
-                      📄 Download PDF
+                      <IconFilePdf className="w-4 h-4" />
+                      Download PDF
                     </button>
                     <button
                       type="button"
                       onClick={() => handleDownloadDocx()}
-                      className="btn-secondary text-xs font-semibold text-blue-700 border-blue-200 hover:bg-blue-50"
+                      className="btn-secondary text-blue-800 border-blue-200 hover:bg-blue-50"
                     >
-                      📝 Download DOCX
+                      <IconFileDoc className="w-4 h-4" />
+                      Download DOCX
                     </button>
 
                     <button
                       onClick={handleProceedToApproval}
                       disabled={approvalLoading}
-                      className="btn-primary text-xs"
+                      className="btn-primary"
                     >
                       Submit for Sign-Off →
                     </button>
@@ -1643,31 +1702,31 @@ export default function App() {
                 </div>
 
                 {/* SRS Structured Preview */}
-                <div className="saas-card p-8 bg-white border border-slate-200">
-                  <div className="border-b border-slate-200 pb-6 mb-6">
-                    <span className="badge badge-blue text-[11px] mb-2 uppercase tracking-wide">IEEE Std 29148-2018</span>
-                    <h2 className="text-2xl font-bold text-slate-900">{activeProject.name}</h2>
+                <div className="saas-card p-6 sm:p-10 bg-white border border-slate-200 shadow-md max-w-4xl w-full mx-auto">
+                  <div className="border-b border-slate-200 pb-6 mb-8">
+                    <span className="badge badge-blue text-[11px] mb-3 uppercase tracking-wide">IEEE Std 29148-2018</span>
+                    <h2 className="text-2xl font-semibold tracking-tight text-slate-900">{activeProject.name}</h2>
                     <p className="text-sm text-slate-500 mt-1">Software Requirements Specification Baseline 1.0</p>
                   </div>
 
                   {srsData?.sections?.map((sec: any, idx: number) => (
                     <div key={idx} className="mb-8">
-                      <h4 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-1.5 mb-3">
+                      <h4 className="text-[15px] font-semibold text-slate-900 border-b border-slate-200 pb-2 mb-3">
                         {sec.num}. {sec.title}
                       </h4>
                       {sec.content && (
-                        <p className="text-xs text-slate-600 leading-relaxed mb-4">{sec.content}</p>
+                        <p className="text-[13px] text-slate-600 leading-relaxed mb-4">{sec.content}</p>
                       )}
 
                       {/* Subsections */}
                       {sec.subsections?.map((sub: any, sIdx: number) => (
-                        <div key={sIdx} className="mb-4 pl-3 border-l-2 border-slate-100">
-                          <h5 className="text-xs font-semibold text-slate-800 mb-1">
+                        <div key={sIdx} className="mb-4 pl-4 border-l-2 border-slate-200">
+                          <h5 className="text-[13px] font-semibold text-slate-800 mb-1">
                             {sub.num} {sub.title}
                           </h5>
-                          {sub.content && <p className="text-xs text-slate-600 leading-relaxed mb-2">{sub.content}</p>}
+                          {sub.content && <p className="text-[13px] text-slate-600 leading-relaxed mb-2">{sub.content}</p>}
                           {sub.items && (
-                            <ul className="text-xs text-slate-600 list-disc pl-4 space-y-1">
+                            <ul className="text-[13px] text-slate-600 list-disc pl-4 space-y-1">
                               {sub.items.map((it: string, itIdx: number) => (
                                 <li key={itIdx}>{it}</li>
                               ))}
@@ -1679,20 +1738,20 @@ export default function App() {
                       {/* Requirements table if functional */}
                       {sec.requirements && (
                         <div className="mt-3 overflow-x-auto">
-                          <table className="w-full text-left text-xs border border-slate-200 rounded-lg">
-                            <thead className="bg-slate-50 text-slate-700">
+                          <table className="w-full text-left text-[13px] border border-slate-200">
+                            <thead className="bg-slate-50 text-slate-500 text-[11px] uppercase tracking-[0.06em]">
                               <tr>
-                                <th className="p-2.5 font-semibold">ID</th>
-                                <th className="p-2.5 font-semibold">Specification Statement</th>
-                                <th className="p-2.5 font-semibold">Priority</th>
+                                <th className="px-3 py-2.5 font-semibold">ID</th>
+                                <th className="px-3 py-2.5 font-semibold">Specification Statement</th>
+                                <th className="px-3 py-2.5 font-semibold">Priority</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
                               {sec.requirements.map((r: any, rIdx: number) => (
-                                <tr key={rIdx} className="hover:bg-slate-50/50">
-                                  <td className="p-2.5 font-mono font-bold text-blue-700">{r.requirement_id}</td>
-                                  <td className="p-2.5 text-slate-800">{r.statement}</td>
-                                  <td className="p-2.5 uppercase font-medium text-slate-600">{r.priority}</td>
+                                <tr key={rIdx} className="hover:bg-slate-50/60 transition-colors">
+                                  <td className="px-3 py-2.5 font-mono font-semibold text-blue-800 whitespace-nowrap align-top">{r.requirement_id}</td>
+                                  <td className="px-3 py-2.5 text-slate-800 leading-relaxed">{r.statement}</td>
+                                  <td className="px-3 py-2.5 uppercase text-[11px] tracking-wide font-medium text-slate-600 align-top">{r.priority}</td>
                                 </tr>
                               ))}
                             </tbody>
@@ -1712,22 +1771,22 @@ export default function App() {
               <div className="space-y-4">
                 <div className="saas-card p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
-                    <h3 className="text-base font-bold text-slate-900">Formal Human Approval & Governance</h3>
-                    <p className="text-xs text-slate-500 mt-0.5">
+                    <h3 className="text-[17px] font-semibold tracking-tight text-slate-900">Formal Human Approval & Governance</h3>
+                    <p className="text-[13px] leading-relaxed text-slate-500 mt-1">
                       Multi-stakeholder sign-off on requirements baseline and SDLC governance controls.
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => navigateToStage('srs')}
-                      className="btn-secondary text-xs"
+                      className="btn-secondary"
                     >
                       ← Back to SRS
                     </button>
                     {approvals.some(a => a.status === 'approved') && (
                       <button
                         onClick={() => navigateToStage('completed')}
-                        className="btn-primary text-xs"
+                        className="btn-primary"
                       >
                         Complete Project →
                       </button>
@@ -1740,10 +1799,10 @@ export default function App() {
                     <div key={idx} className="saas-card p-6 border-slate-200">
                       <div className="flex items-start justify-between gap-4 mb-3">
                         <div>
-                          <span className="badge badge-blue text-[10px] uppercase font-bold tracking-wider mb-1">
+                          <span className="badge badge-blue text-[10px] uppercase font-semibold tracking-wider mb-1">
                             {app.request_type?.replace(/_/g, ' ')}
                           </span>
-                          <h4 className="text-base font-bold text-slate-900">{app.title}</h4>
+                          <h4 className="text-[17px] font-semibold tracking-tight text-slate-900">{app.title}</h4>
                           <p className="text-xs text-slate-600 mt-1">{app.description}</p>
                         </div>
                         <span
@@ -1765,27 +1824,27 @@ export default function App() {
                             value={approvalComment}
                             onChange={e => setApprovalComment(e.target.value)}
                             placeholder="Enter review comments or conditional sign-off notes..."
-                            className="input-clean text-xs h-20 resize-none"
+                            className="input-clean text-[13.5px] h-24 resize-none"
                           />
-                          <div className="flex items-center gap-3">
+                          <div className="flex flex-wrap items-center gap-3">
                             <button
                               onClick={() => handleActionApproval(app.id, 'approve')}
                               disabled={approvalLoading}
-                              className="btn-primary text-xs bg-emerald-600 hover:bg-emerald-700"
+                              className="btn-primary bg-emerald-600 hover:bg-emerald-700"
                             >
                               Approve Baseline
                             </button>
                             <button
                               onClick={() => handleActionApproval(app.id, 'modify')}
                               disabled={approvalLoading}
-                              className="btn-secondary text-xs text-amber-700 border-amber-300 hover:bg-amber-50"
+                              className="btn-secondary text-amber-800 border-amber-300 hover:bg-amber-50"
                             >
                               Request Changes
                             </button>
                             <button
                               onClick={() => handleActionApproval(app.id, 'reject')}
                               disabled={approvalLoading}
-                              className="btn-secondary text-xs text-red-700 border-red-300 hover:bg-red-50"
+                              className="btn-secondary text-red-700 border-red-300 hover:bg-red-50"
                             >
                               Reject
                             </button>
@@ -1803,33 +1862,35 @@ export default function App() {
             ───────────────────────────────────────────── */}
             {currentStage === 'completed' && (
               <div className="space-y-6">
-                <div className="saas-card p-8 text-center bg-white border border-slate-200">
-                  <div className="w-16 h-16 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center text-3xl mx-auto mb-4 border border-emerald-100">
-                    ✓
+                <div className="saas-card p-8 sm:p-12 text-center bg-white border border-slate-200">
+                  <div className="w-16 h-16 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-5 border border-emerald-100 ring-8 ring-emerald-50/60">
+                    <IconCheck className="w-8 h-8" />
                   </div>
-                  <h3 className="text-2xl font-bold text-slate-900">Project Baseline Approved</h3>
-                  <p className="text-sm text-slate-500 max-w-xl mx-auto mt-2">
+                  <h3 className="text-2xl font-semibold tracking-tight text-slate-900">Project Baseline Approved</h3>
+                  <p className="text-sm leading-relaxed text-slate-500 max-w-xl mx-auto mt-2.5">
                     '{activeProject.name}' requirements specification has completed the full agentic engineering lifecycle and has been formally approved for implementation.
                   </p>
 
-                  <div className="flex flex-wrap items-center justify-center gap-4 mt-6">
+                  <div className="flex flex-wrap items-center justify-center gap-3 mt-8">
                     <button
                       type="button"
                       onClick={() => handleDownloadPdf()}
-                      className="btn-primary text-xs"
+                      className="btn-primary"
                     >
-                      📄 Download Approved SRS (PDF)
+                      <IconFilePdf className="w-4 h-4" />
+                      Download Approved SRS (PDF)
                     </button>
                     <button
                       type="button"
                       onClick={() => handleDownloadDocx()}
-                      className="btn-secondary text-xs"
+                      className="btn-secondary"
                     >
-                      📝 Download Approved SRS (DOCX)
+                      <IconFileDoc className="w-4 h-4" />
+                      Download Approved SRS (DOCX)
                     </button>
                     <button
                       onClick={() => setShowCreateModal(true)}
-                      className="btn-secondary text-xs"
+                      className="btn-secondary"
                     >
                       + Create Next Project
                     </button>
@@ -1839,7 +1900,7 @@ export default function App() {
                 {/* Audit Trail Viewer */}
                 <div className="saas-card p-6">
                   <div className="flex items-center justify-between mb-4">
-                    <h4 className="text-sm font-bold text-slate-900">Complete Immutable Audit Trail</h4>
+                    <h4 className="text-sm font-semibold text-slate-900">Complete Immutable Audit Trail</h4>
                     <button
                       onClick={handleLoadAuditTrail}
                       className="btn-secondary text-xs py-1"
@@ -1853,13 +1914,13 @@ export default function App() {
                       <p className="text-xs text-slate-400 italic">Click Refresh to load recorded transaction audit logs.</p>
                     ) : (
                       auditTrail.map((log, idx) => (
-                        <div key={idx} className="p-3 bg-slate-50 rounded border border-slate-100 flex items-center justify-between text-xs">
+                        <div key={idx} className="px-4 py-3 bg-slate-50 rounded-lg border border-slate-100 flex items-center justify-between gap-3 text-[13px]">
                           <div>
                             <span className="font-semibold text-slate-800 capitalize">{log.agent || log.event_type}</span>
                             <span className="text-slate-400 mx-2">•</span>
                             <span className="text-slate-600">{log.action}</span>
                           </div>
-                          <span className="text-slate-400 font-mono text-[11px]">{log.timestamp?.slice(0, 19).replace('T', ' ')}</span>
+                          <span className="text-slate-400 font-mono text-[11px] shrink-0 tabular-nums">{log.timestamp?.slice(0, 19).replace('T', ' ')}</span>
                         </div>
                       ))
                     )}
@@ -1875,16 +1936,16 @@ export default function App() {
           MODAL: CREATE PROJECT
       ───────────────────────────────────────────── */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl border border-slate-200 max-w-md w-full p-6 animate-fade-in">
-            <h3 className="text-lg font-bold text-slate-900 mb-1">Create Financial Project</h3>
-            <p className="text-xs text-slate-500 mb-4">
+        <div className="fixed inset-0 bg-slate-900/45 backdrop-blur-[3px] flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-md w-full max-h-[92vh] overflow-y-auto p-6 sm:p-7 animate-fade-in">
+            <h3 className="text-lg font-semibold tracking-tight text-slate-900 mb-1">Create Financial Project</h3>
+            <p className="text-[13px] text-slate-500 mb-6">
               Initialize a new requirements engineering lifecycle.
             </p>
 
             <form onSubmit={handleCreateProject} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Project Name</label>
+                <label className="field-label">Project Name</label>
                 <input
                   type="text"
                   required
@@ -1896,7 +1957,7 @@ export default function App() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Scope Description</label>
+                <label className="field-label">Scope Description</label>
                 <textarea
                   value={newProjectDesc}
                   onChange={e => setNewProjectDesc(e.target.value)}
@@ -1905,9 +1966,9 @@ export default function App() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-5">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Domain Use Case</label>
+                  <label className="field-label">Domain Use Case</label>
                   <select
                     value={newProjectUseCase}
                     onChange={e => setNewProjectUseCase(e.target.value)}
@@ -1921,7 +1982,7 @@ export default function App() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                  <label className="field-label">
                     Regulatory Jurisdiction
                   </label>
                   <select
@@ -1952,18 +2013,18 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2">
+              <div className="flex items-center justify-end gap-3 pt-3">
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  className="btn-secondary text-xs"
+                  className="btn-secondary"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={!newProjectName.trim()}
-                  className="btn-primary text-xs"
+                  className="btn-primary"
                 >
                   Create & Start Interview
                 </button>
@@ -1977,13 +2038,13 @@ export default function App() {
           MODAL: PROJECT HISTORY
       ───────────────────────────────────────────── */}
       {showHistoryModal && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl border border-slate-200 max-w-lg w-full p-6 animate-fade-in">
+        <div className="fixed inset-0 bg-slate-900/45 backdrop-blur-[3px] flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-lg w-full max-h-[92vh] overflow-y-auto p-6 sm:p-7 animate-fade-in">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-bold text-slate-900">Project History</h3>
+              <h3 className="text-[17px] font-semibold tracking-tight text-slate-900">Project History</h3>
               <button
                 onClick={() => setShowHistoryModal(false)}
-                className="text-slate-400 hover:text-slate-600 text-lg leading-none"
+                className="w-8 h-8 -mr-2 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 text-xl leading-none transition-colors"
               >
                 ×
               </button>
@@ -1998,9 +2059,9 @@ export default function App() {
                   return (
                     <div
                       key={proj.id}
-                      className={`p-4 rounded-lg border text-xs transition-colors flex items-center justify-between ${
+                      className={`p-4 rounded-xl border text-xs transition-colors flex items-center justify-between gap-3 ${
                         isCurrent
-                          ? 'border-blue-500 bg-blue-50/20'
+                          ? 'border-blue-300 bg-blue-50/50'
                           : 'border-slate-200 hover:bg-slate-50'
                       }`}
                     >
@@ -2026,7 +2087,7 @@ export default function App() {
                         <button
                           type="button"
                           onClick={() => handleDownloadPdf(proj.id, proj.name)}
-                          className="text-xs text-blue-600 hover:underline px-2 py-1"
+                          className="text-xs font-medium text-blue-700 hover:text-blue-900 hover:underline px-2 py-1"
                         >
                           SRS PDF
                         </button>
