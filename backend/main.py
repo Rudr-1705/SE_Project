@@ -163,8 +163,11 @@ async def seed_knowledge_base():
     texts = [item["text"] for item in knowledge_items]
     metadatas = [item["metadata"] for item in knowledge_items]
 
-    add_documents(texts, metadatas)
-    logger.info(f"Seeded {len(texts)} knowledge items")
+    try:
+        add_documents(texts, metadatas)
+        logger.info(f"Seeded {len(texts)} knowledge items")
+    except Exception as e:
+        logger.warning(f"Could not seed knowledge base (offline/fallback): {e}")
 
 
 # ── Run server ─────────────────────────────────────────
