@@ -701,8 +701,8 @@ def generate_srs_pdf(srs_data: dict, output_path: str) -> str:
 
     meta_table_data = [
         [Paragraph("<b>Standard</b>", table_cell_style), Paragraph("IEEE Std 29148-2018 Compliant", table_cell_style)],
-        [Paragraph("<b>Document Version</b>", table_cell_style), Paragraph(meta.get("version", "1.0 Baseline"), table_cell_style)],
-        [Paragraph("<b>Status</b>", table_cell_style), Paragraph(meta.get("status", "APPROVED"), table_cell_style)],
+        [Paragraph("<b>Document Version</b>", table_cell_style), Paragraph(meta.get("version", "1.0 Draft"), table_cell_style)],
+        [Paragraph("<b>Status</b>", table_cell_style), Paragraph(meta.get("status", "DRAFT - Pending Human Stakeholder Sign-Off"), table_cell_style)],
         [Paragraph("<b>Effective Date</b>", table_cell_style), Paragraph(meta.get("date", ""), table_cell_style)],
         [Paragraph("<b>Security Classification</b>", table_cell_style), Paragraph(meta.get("classification", "CONFIDENTIAL"), table_cell_style)],
         [Paragraph("<b>Authoring Platform</b>", table_cell_style), Paragraph("AIFRE (Agentic AI Financial Requirements Engineering)", table_cell_style)],
@@ -958,11 +958,13 @@ def generate_srs_pdf(srs_data: dict, output_path: str) -> str:
         # Sign-off Table (Section 11)
         if sec.get("sign_offs"):
             so_data = [[Paragraph("<b>Role</b>", table_header_style), Paragraph("<b>Responsibility</b>", table_header_style), Paragraph("<b>Signature / Approval Status</b>", table_header_style)]]
+            is_baseline = (meta.get("status") == "APPROVED BASELINE")
+            sign_status = "APPROVED — DIGITAL RECORD" if is_baseline else "PENDING — Awaiting Stakeholder Sign-Off"
             for role, resp in sec["sign_offs"]:
                 so_data.append([
                     Paragraph(f"<b>{role}</b>", table_cell_style),
                     Paragraph(resp, table_cell_style),
-                    Paragraph("APPROVED — DIGITAL RECORD", table_cell_style)
+                    Paragraph(sign_status, table_cell_style)
                 ])
             t = Table(so_data, colWidths=[130, 240, 130])
             t.setStyle(TableStyle([
@@ -1083,6 +1085,23 @@ def generate_srs_docx(srs_data: dict, output_path: str) -> str:
                     doc.add_paragraph(to, style='List Bullet')
             doc.add_paragraph()
 
+        # Sign-off Table (Section 11)
+        if sec.get("sign_offs"):
+            t = doc.add_table(rows=1, cols=3)
+            t.style = 'Light Shading Accent 1' if 'Light Shading Accent 1' in doc.styles else 'Table Grid'
+            hdr = t.rows[0].cells
+            hdr[0].text = "Role"
+            hdr[1].text = "Responsibility"
+            hdr[2].text = "Signature / Approval Status"
+            is_baseline = (meta.get("status") == "APPROVED BASELINE")
+            sign_status = "APPROVED — DIGITAL RECORD" if is_baseline else "PENDING — Awaiting Stakeholder Sign-Off"
+            for role, resp in sec["sign_offs"]:
+                row = t.add_row().cells
+                row[0].text = role
+                row[1].text = resp
+                row[2].text = sign_status
+            doc.add_paragraph()
+
         # Functional requirements table (Section 3)
         if sec.get("requirements"):
             t = doc.add_table(rows=1, cols=4)
@@ -1132,6 +1151,23 @@ def generate_srs_docx(srs_data: dict, output_path: str) -> str:
                     doc.add_paragraph(to, style='List Bullet')
             doc.add_paragraph()
 
+        # Sign-off Table (Section 11)
+        if sec.get("sign_offs"):
+            t = doc.add_table(rows=1, cols=3)
+            t.style = 'Light Shading Accent 1' if 'Light Shading Accent 1' in doc.styles else 'Table Grid'
+            hdr = t.rows[0].cells
+            hdr[0].text = "Role"
+            hdr[1].text = "Responsibility"
+            hdr[2].text = "Signature / Approval Status"
+            is_baseline = (meta.get("status") == "APPROVED BASELINE")
+            sign_status = "APPROVED — DIGITAL RECORD" if is_baseline else "PENDING — Awaiting Stakeholder Sign-Off"
+            for role, resp in sec["sign_offs"]:
+                row = t.add_row().cells
+                row[0].text = role
+                row[1].text = resp
+                row[2].text = sign_status
+            doc.add_paragraph()
+
         # Traceability Matrix (Section 10)
         if sec.get("traceability_matrix"):
             t = doc.add_table(rows=1, cols=4)
@@ -1178,6 +1214,23 @@ def generate_srs_docx(srs_data: dict, output_path: str) -> str:
                 doc.add_paragraph("Key Governance Trade-Offs:")
                 for to in sdlc.get("trade_offs", []):
                     doc.add_paragraph(to, style='List Bullet')
+            doc.add_paragraph()
+
+        # Sign-off Table (Section 11)
+        if sec.get("sign_offs"):
+            t = doc.add_table(rows=1, cols=3)
+            t.style = 'Light Shading Accent 1' if 'Light Shading Accent 1' in doc.styles else 'Table Grid'
+            hdr = t.rows[0].cells
+            hdr[0].text = "Role"
+            hdr[1].text = "Responsibility"
+            hdr[2].text = "Signature / Approval Status"
+            is_baseline = (meta.get("status") == "APPROVED BASELINE")
+            sign_status = "APPROVED — DIGITAL RECORD" if is_baseline else "PENDING — Awaiting Stakeholder Sign-Off"
+            for role, resp in sec["sign_offs"]:
+                row = t.add_row().cells
+                row[0].text = role
+                row[1].text = resp
+                row[2].text = sign_status
             doc.add_paragraph()
 
     doc.save(output_path)

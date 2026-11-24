@@ -657,17 +657,18 @@ Return valid JSON with keys:
         session["srs_result"] = result.data
         self._log_audit(session, "documentation", "generate_srs", result)
 
-        # Auto-create pending approval request for SRS baseline
-        await self.request_approval(
-            project_id=project_id,
-            user_id=user_id,
-            approval_type="requirement_baseline",
-            title=f"SRS Baseline Sign-Off: {project_name or project_id}",
-            description="Formal IEEE 29148 Software Requirements Specification baseline awaiting stakeholder sign-off.",
-            target_id=project_id,
-            target_data={"version": "1.0", "requirements_count": len(session["requirements"])},
-            db=db,
-        )
+        # Auto-create pending approval request for SRS baseline only if not already approved
+        if approval_status != "approved":
+            await self.request_approval(
+                project_id=project_id,
+                user_id=user_id,
+                approval_type="requirement_baseline",
+                title=f"SRS Baseline Sign-Off: {project_name or project_id}",
+                description="Formal IEEE 29148 Software Requirements Specification baseline awaiting stakeholder sign-off.",
+                target_id=project_id,
+                target_data={"version": "1.0", "requirements_count": len(session["requirements"])},
+                db=db,
+            )
 
         await self.persist_to_db(project_id, db, stage="srs")
         return result.data
@@ -697,15 +698,15 @@ Return valid JSON with keys:
                 from models.approval import ApprovalRequest
                 from sqlalchemy import select
 
-                # Check if identical pending approval already exists
+                # Check if approval already exists for this project and request_type
                 existing = await db.execute(
                     select(ApprovalRequest).where(
                         ApprovalRequest.project_id == project_id,
                         ApprovalRequest.request_type == approval_type,
-                        ApprovalRequest.status == "pending"
                     )
                 )
-                if not existing.scalar_one_or_none():
+                existing_approval = existing.scalars().first()
+                if not existing_approval:
                     db_approval = ApprovalRequest(
                         id=str(uuid.uuid4()),
                         project_id=project_id,
@@ -722,6 +723,9 @@ Return valid JSON with keys:
                     db.add(db_approval)
                     await db.flush()
                     app_req["id"] = db_approval.id
+                else:
+                    app_req["id"] = existing_approval.id
+                    app_req["status"] = existing_approval.status
             except Exception as e:
                 logger.error(f"Error persisting approval to DB: {e}")
 

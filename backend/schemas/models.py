@@ -1,8 +1,9 @@
 """Pydantic schemas for all API models — typed, validated I/O."""
 from datetime import datetime
 from enum import Enum
-from pydantic import BaseModel, Field, EmailStr
-from typing import Optional
+from pydantic import BaseModel, Field, EmailStr, field_validator
+from typing import Optional, Union, Any
+import json
 
 
 # ── Enums ──────────────────────────────────────────────
@@ -263,21 +264,66 @@ class ApprovalActionCreate(BaseModel):
     modifications: dict = {}
 
 
+class ApprovalActionResponse(BaseModel):
+    id: str
+    approval_request_id: str
+    reviewer_id: str
+    action: str
+    comments: Optional[str] = ""
+    modifications: Optional[Union[dict, list, str]] = {}
+    created_at: datetime
+
+    @field_validator("modifications", mode="before")
+    @classmethod
+    def parse_modifications(cls, v):
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except Exception:
+                return {}
+        return v or {}
+
+    class Config:
+        from_attributes = True
+
+
 class ApprovalRequestResponse(BaseModel):
     id: str
     project_id: str
     request_type: str
     title: str
     description: str
-    context: Optional[dict] = {}
+    context: Optional[Union[dict, list, str]] = {}
     target_type: str
     target_id: str
-    required_roles: Optional[list] = []
+    target_data: Optional[Union[dict, list, str]] = {}
+    required_roles: Optional[Union[list, dict, str]] = []
     status: str
     priority: str
     created_at: datetime
     resolved_at: Optional[datetime] = None
-    actions: Optional[list] = []
+    actions: list[ApprovalActionResponse] = []
+
+    @field_validator("context", "target_data", mode="before")
+    @classmethod
+    def parse_dict_fields(cls, v):
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except Exception:
+                return {}
+        return v or {}
+
+    @field_validator("required_roles", mode="before")
+    @classmethod
+    def parse_roles(cls, v):
+        if isinstance(v, str):
+            try:
+                parsed = json.loads(v)
+                return parsed if isinstance(parsed, list) else [parsed]
+            except Exception:
+                return []
+        return v or []
 
     class Config:
         from_attributes = True

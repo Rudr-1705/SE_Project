@@ -134,6 +134,7 @@ export default function App() {
   const [approvals, setApprovals] = useState<ApprovalRequest[]>([]);
   const [approvalComment, setApprovalComment] = useState('');
   const [approvalLoading, setApprovalLoading] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
 
   // ── Audit State ──
   const [auditTrail, setAuditTrail] = useState<any[]>([]);
@@ -148,6 +149,7 @@ export default function App() {
 
   // ── Initial Session Restoration ──
   useEffect(() => {
+    setIsMounted(true);
     const savedToken = localStorage.getItem('aifre_jwt_token');
     if (savedToken) {
       setToken(savedToken);
@@ -326,7 +328,7 @@ export default function App() {
           })
           .catch(() => {})
           .finally(() => setSdlcLoading(false));
-      } else if (stageId === 'approval' && approvals.length === 0) {
+      } else if (stageId === 'approval') {
         setApprovalLoading(true);
         approvalsAPI.list(token, activeProject.id)
           .then(apps => {
@@ -520,6 +522,11 @@ export default function App() {
       showToast(err.message || 'Download failed', 'error');
     }
   };
+
+  // ── Prevent hydration mismatch before client mount ──
+  if (!isMounted) {
+    return null;
+  }
 
   // ──────────────────────────────────────────────────────
   // 1. AUTHENTICATION VIEW (If not logged in)

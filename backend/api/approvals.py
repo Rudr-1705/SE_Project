@@ -88,7 +88,8 @@ async def create_approval(
     db.add(AuditLog(event_type="approval", action="create",
                     user_id=user.id, project_id=project_id,
                     target_type="approval", target_id=approval.id))
-    await db.flush()
+    await db.commit()
+    await db.refresh(approval)
     return ApprovalRequestResponse.model_validate(approval)
 
 
@@ -139,6 +140,23 @@ async def perform_approval_action(
     session = orchestrator._get_session(project_id)
     if action_val == "approve":
         session["stage"] = "completed"
+        # Immediately regenerate the approved SRS so that latest PDF and DOCX
+        # on disk reflect the approved status and latest content
+        try:
+            approved_srs = await orchestrator.generate_srs(
+                project_id=project_id,
+                user_id=user.id,
+                project_name=project.name,
+                project_desc=project.description,
+                jurisdiction=project.jurisdiction,
+                approval_status="approved",
+                db=db,
+            )
+            approved_srs["approval_status"] = "approved"
+            session["srs_result"] = approved_srs
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"Could not immediately regenerate approved SRS on approval: {e}")
 
     db.add(AuditLog(
         event_type="approval",
@@ -155,7 +173,8 @@ async def perform_approval_action(
             "reviewer": user.full_name,
         }
     ))
-    await db.flush()
+    await db.commit()
+    await db.refresh(approval)
 
     return {
         "status": "success",

@@ -86,8 +86,9 @@ async def preview_srs_document(
     approvals = app_res.scalars().all()
     is_approved = any(a.status == "approved" for a in approvals)
     approval_status = "approved" if is_approved else "pending"
+    current_status = srs_res.get("approval_status") if srs_res else None
 
-    if not srs_res:
+    if not srs_res or current_status != approval_status:
         srs_res = await orchestrator.generate_srs(
             project_id=project_id,
             user_id=user.id,
@@ -97,9 +98,13 @@ async def preview_srs_document(
             approval_status=approval_status,
             db=db,
         )
-    elif srs_res and "srs_data" in srs_res and is_approved:
-        srs_res["srs_data"]["metadata"]["status"] = "APPROVED BASELINE"
-        srs_res["srs_data"]["metadata"]["version"] = "1.0 Baseline"
+    elif srs_res and "srs_data" in srs_res:
+        if is_approved:
+            srs_res["srs_data"]["metadata"]["status"] = "APPROVED BASELINE"
+            srs_res["srs_data"]["metadata"]["version"] = "1.0 Baseline"
+        else:
+            srs_res["srs_data"]["metadata"]["status"] = "DRAFT - Pending Human Stakeholder Sign-Off"
+            srs_res["srs_data"]["metadata"]["version"] = "1.0 Draft"
 
     return srs_res
 
@@ -118,21 +123,27 @@ async def download_srs_pdf(
     session = orchestrator.get_session_state(project_id)
     srs_res = session.get("srs_result")
 
-    if not srs_res or not srs_res.get("pdf_path") or not os.path.exists(srs_res["pdf_path"]):
-        app_res = await db.execute(
-            select(ApprovalRequest).where(ApprovalRequest.project_id == project_id)
-        )
-        approvals = app_res.scalars().all()
-        is_approved = any(a.status == "approved" for a in approvals)
-        approval_status = "approved" if is_approved else "pending"
+    app_res = await db.execute(
+        select(ApprovalRequest).where(ApprovalRequest.project_id == project_id)
+    )
+    approvals = app_res.scalars().all()
+    is_approved = any(a.status == "approved" for a in approvals)
+    expected_status = "approved" if is_approved else "pending"
+    current_status = srs_res.get("approval_status") if srs_res else None
 
+    if (
+        not srs_res
+        or not srs_res.get("pdf_path")
+        or not os.path.exists(srs_res["pdf_path"])
+        or current_status != expected_status
+    ):
         srs_res = await orchestrator.generate_srs(
             project_id=project_id,
             user_id=user.id,
             project_name=project.name,
             project_desc=project.description,
             jurisdiction=project.jurisdiction,
-            approval_status=approval_status,
+            approval_status=expected_status,
             db=db,
         )
 
@@ -162,21 +173,27 @@ async def download_srs_docx(
     session = orchestrator.get_session_state(project_id)
     srs_res = session.get("srs_result")
 
-    if not srs_res or not srs_res.get("docx_path") or not os.path.exists(srs_res["docx_path"]):
-        app_res = await db.execute(
-            select(ApprovalRequest).where(ApprovalRequest.project_id == project_id)
-        )
-        approvals = app_res.scalars().all()
-        is_approved = any(a.status == "approved" for a in approvals)
-        approval_status = "approved" if is_approved else "pending"
+    app_res = await db.execute(
+        select(ApprovalRequest).where(ApprovalRequest.project_id == project_id)
+    )
+    approvals = app_res.scalars().all()
+    is_approved = any(a.status == "approved" for a in approvals)
+    expected_status = "approved" if is_approved else "pending"
+    current_status = srs_res.get("approval_status") if srs_res else None
 
+    if (
+        not srs_res
+        or not srs_res.get("docx_path")
+        or not os.path.exists(srs_res["docx_path"])
+        or current_status != expected_status
+    ):
         srs_res = await orchestrator.generate_srs(
             project_id=project_id,
             user_id=user.id,
             project_name=project.name,
             project_desc=project.description,
             jurisdiction=project.jurisdiction,
-            approval_status=approval_status,
+            approval_status=expected_status,
             db=db,
         )
 
